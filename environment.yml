@@ -1,0 +1,19 @@
+# This file may be used to create an environment using: 
+# $ conda env create --name <env> --file <this file>
+
+name: velocity
+channels:
+    - defaults
+    - pytorch 
+    - nvidia
+    - conda-forge
+
+dependencies: 
+    - python=3.9
+    - numpy==1.23.4
+    - pip 
+
+    - pip:
+        # install velocity and its dependencies
+        - -r requirements.txt 
+    
