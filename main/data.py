@@ -463,6 +463,7 @@ class StretchyBird2D(Dataset):
         self.leg2_y = 17
         self.body[:, [19, 20], self.leg1_y] = 1
         self.body[:, [19, 20], self.leg2_y] = 1
+        self.body = self.create_body(tilt_degree=150)
 
         self.max_std = 10 / 1.3
         self.x_grid = torch.arange(10).cuda()
@@ -559,8 +560,9 @@ class StretchyBird2D(Dataset):
 
         shifted_stds = (gt_vs.cumsum(dim=0) + stds).float()
 
-        images = self.create_body(tilt_degree=torch.randint(110, 191, size=(1,)).item())
-
+        # images = self.create_body(tilt_degree=torch.randint(110, 191, size=(1,)).item())
+        images = deepcopy(self.body)
+        
 
         '''
         assemble neck and legs

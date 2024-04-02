@@ -33,7 +33,6 @@ from plotly.subplots import make_subplots
 from itertools import chain, combinations, permutations
 import matplotlib
 from mpl_toolkits.mplot3d import Axes3D
-matplotlib.use('Agg')
 
 from copy import deepcopy
 import os

@@ -444,25 +444,25 @@ EXP_CODES = dict(
     freq=['z528sp0x', 'dh5950bh', '422dsi5h', 'cj8x2eoo', '8z118ppg', 'tnhupber'],
     freq_2dim=['70yf9dxl', 'yajgq80l', '5m5okdv0', '261ihs6j', 'kigt2pvn', 'vlvcjjlh'],
     freq_3dim=[],
-    freq_ae='jjotij2g',
+    freq_ae=['jjotij2g'],
     freq_mcnet=[],
 
     blob=['x1axbbz9', 'lhdeijjs', 'u97nrn1r', '6cbtkrec', 'xmrrutxk', '8d0k2dwo'],
     blob_3dim=[],
-    blob_ae='mwn6e19n',
+    blob_ae=['mwn6e19n'],
     blob_mcnet=[],
 
     gauss_blobs=['vg2es21d', 'slj7afhk', '2jc1ffd7', 'q81c8b20', 'pd60xufu', 'aq61yki5'],
     gauss_blobs_3dim=['qxjymcmk', 'tkhky706', 'gvb7vgly', 'eq4vnb86', 'qxpvetjm', 'npfcju5f'],
-    gauss_blobs_ae='wbg6v2on',
+    gauss_blobs_ae=['wbg6v2on'],
     gauss_blobs_mcnet=[],
 
     bird2d=['kecqzhj6', '033kma5k', '4dab3zb9', '7eqag39e', 'bi9emre0', '289qlq2f'],
     bird2d_3dim=[],
-    bird2d_ae='fwid48ml',
+    bird2d_ae=['fwid48ml'],
     bird2d_mcnet=[],
 
     bird3d=['7tpqq4n6', 'b942twxh', '307rqww5', 'l9354lc8', 's9rnn0aw', 'ecwyvubc'],
-    bird3d_ae='mlwxi3u4',
+    bird3d_ae=['mlwxi3u4'],
     bird3d_mcnet=[],
 )
