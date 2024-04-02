@@ -51,7 +51,6 @@ psutil==5.9.3
 ptyprocess==0.7.0
 pure-eval==0.2.2
 Pygments==2.13.0
-pymesh2==0.3
 pynndescent==0.5.11
 pyparsing==3.0.9
 pyrsistent==0.19.3
