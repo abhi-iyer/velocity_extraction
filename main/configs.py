@@ -152,8 +152,9 @@ blob['model_args'].update(
     num_output_labels=200,
 )
 blob['loss_fn_args'].update(
-    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, isometry_loss_weight=1e2,
-    isometry_similarity_threshold=1e-4,
+    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=1e-4,
+    spatial_locality_loss=0.0,
 )
 
 
@@ -169,8 +170,9 @@ blob_3dim['model_args'].update(
     num_output_labels=200,
 )
 blob_3dim['loss_fn_args'].update(
-    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, isometry_loss_weight=1e2,
-    isometry_similarity_threshold=1e-4,
+    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=1e-4,
+    spatial_locality_loss=1e-1,
 )
 
 
@@ -205,8 +207,9 @@ gauss_blobs['model_args'].update(
     num_output_labels=200,
 )
 gauss_blobs['loss_fn_args'].update(
-    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, isometry_loss_weight=1e2,
-    isometry_similarity_threshold=1e-2,
+    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=1e-2,
+    spatial_locality_loss=0.0,
 )
 
 
@@ -222,8 +225,9 @@ gauss_blobs_3dim['model_args'].update(
     num_output_labels=200,
 )
 gauss_blobs_3dim['loss_fn_args'].update(
-    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, isometry_loss_weight=1e2,
-    isometry_similarity_threshold=1e-2,
+    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=1e-2,
+    spatial_locality_loss=0.0,
 )
 
 
@@ -258,8 +262,9 @@ bird2d['model_args'].update(
     num_output_labels=200,
 )
 bird2d['loss_fn_args'].update(
-    image_loss_weight=1e1, loop_loss_weight=1e2, shortcut_loss_weight=1e1, isometry_loss_weight=1e2,
-    isometry_similarity_threshold=6e-3,
+    image_loss_weight=1e1, loop_loss_weight=1e2, shortcut_loss_weight=1e1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=6e-3,
+    spatial_locality_loss=0.0,
 )
 
 
@@ -275,8 +280,9 @@ bird2d_3dim['model_args'].update(
     num_output_labels=200,
 )
 bird2d_3dim['loss_fn_args'].update(
-    image_loss_weight=1e1, loop_loss_weight=1e2, shortcut_loss_weight=1e1, isometry_loss_weight=1e2, 
-    isometry_similarity_threshold=6e-3,
+    image_loss_weight=1e1, loop_loss_weight=1e2, shortcut_loss_weight=1e1,
+    isometry_loss_weight=1e2, isometry_similarity_threshold=6e-3,
+    spatial_locality_loss=0.5,
 )
 
 
@@ -320,8 +326,9 @@ bird3d['dataset_args'].update(
     num_training=15e3, num_testing=3e3,
 )
 bird3d['loss_fn_args'].update(
-    image_loss_weight=1e1, loop_loss_weight=1e2, shortcut_loss_weight=1e1, isometry_loss_weight=1e2,
-    isometry_similarity_threshold=6e-3,
+    image_loss_weight=1e1, loop_loss_weight=1e2, shortcut_loss_weight=1e1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=6e-3,
+    spatial_locality_loss=0.0,
 )
 
 
@@ -356,8 +363,9 @@ freq['model_args'].update(
     num_output_labels=200,
 )
 freq['loss_fn_args'].update(
-    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, isometry_loss_weight=1e2,
-    isometry_similarity_threshold=1e-4,
+    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=1e-4,
+    spatial_locality_loss=0.0,
 )
 
 
@@ -373,8 +381,9 @@ freq_2dim['model_args'].update(
     num_output_labels=200,
 )
 freq_2dim['loss_fn_args'].update(
-    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, isometry_loss_weight=1e2,
-    isometry_similarity_threshold=1e-4,
+    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=1e-4,
+    spatial_locality_loss=0.0,
 )
 
 
@@ -390,8 +399,9 @@ freq_3dim['model_args'].update(
     num_output_labels=200,
 )
 freq_3dim['loss_fn_args'].update(
-    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, isometry_loss_weight=1e2,
-    isometry_similarity_threshold=1e-4,
+    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=1e-4,
+    spatial_locality_loss=1e-1,
 )
 
 
@@ -457,12 +467,12 @@ EXP_CODES = dict(
     gauss_blobs_ae=['wbg6v2on'],
     gauss_blobs_mcnet=[],
 
-    bird2d=['kecqzhj6', '033kma5k', '4dab3zb9', '7eqag39e', 'bi9emre0', '289qlq2f'],
+    bird2d=[],
     bird2d_3dim=[],
-    bird2d_ae=['fwid48ml'],
+    bird2d_ae=[],
     bird2d_mcnet=[],
 
-    bird3d=['7tpqq4n6', 'b942twxh', '307rqww5', 'l9354lc8', 's9rnn0aw', 'ecwyvubc'],
-    bird3d_ae=['mlwxi3u4'],
+    bird3d=[],
+    bird3d_ae=[],
     bird3d_mcnet=[],
 )

@@ -171,7 +171,7 @@ def cmap2d(X, max_shift):
     return colors
 
 
-def plotly_scatter(data, colors, title):
+def plotly_scatter(data, colors, title, x_range=None, y_range=None):
     if colors is None:
         hex_colors = ['#000000' for _ in range(data.shape[0])]
     else:
@@ -210,6 +210,7 @@ def plotly_scatter(data, colors, title):
         args = dict(
             xaxis_title='dim 1',
             yaxis_title='dim 2',
+
         )
     elif data.shape[1] == 1:
         # plot data vs. its color (R)
@@ -236,6 +237,12 @@ def plotly_scatter(data, colors, title):
         title={'text' : title},
         **args,
     )
+    
+    if data.shape[1] == 2 or data.shape[1] == 1:
+        if x_range:
+            fig.update_xaxes(range=x_range)
+        if y_range:
+            fig.update_yaxes(range=y_range)
 
     return fig
 
@@ -351,90 +358,15 @@ def mse_loss_fn(input_data, target_data, weight=1):
         loss = weight * mse(input_data, target_data.view_as(input_data))
 
         return loss
-    
-
-'''
-def general_loss_fn_old(model, images, loss_fn_args):
-    # preliminaries
-    image_loss = None
-    loop_loss = None
-    shortcut_loss = None
-    isometry_loss = None
-
-
-    path_len = images.shape[1]
-
-    gt_imgs = list(get_i1_i2_i3(images))
-    gt_imgs[0] = gt_imgs[0].squeeze()
-    gt_imgs[1] = gt_imgs[1].squeeze()
-    gt_imgs[2] = gt_imgs[2].squeeze()
-
-    i2 = gt_imgs[1][:, :-1, :]
-    # i3 = gt_imgs[0][:, 1:, :]
-    i4 = gt_imgs[1][:, 1:, :]
-    # i5 = gt_imgs[2][:, 1:, :]
-    
-    
-    pred_vs_i1_i2, pred_i3_a = model_full(model, first_img=gt_imgs[0], second_img=gt_imgs[1], apply_img=gt_imgs[1])
-
-    if (path_len % 2 == 0):
-        pred_i3_a = pred_i3_a[:, :-1, :, :, :]
-
-
-    # image prediction loss
-    image_loss = mse_loss_fn(pred_i3_a, gt_imgs[2], loss_fn_args['image_loss_weight'])
-
-
-    # loop closure loss
-    if loss_fn_args['loop_loss_weight']:
-        pred_vs_i1_i2_sum = pred_vs_i1_i2.sum(dim=1)
-
-        loop_loss = mse_loss_fn(pred_vs_i1_i2_sum, torch.zeros_like(pred_vs_i1_i2_sum).cuda(), loss_fn_args['loop_loss_weight'])
-
-
-    # shortcut estimation loss
-    if loss_fn_args['shortcut_loss_weight']:
-        pred_i1_a = model_decoder(model=model, pred_vs=-pred_vs_i1_i2, apply_img=gt_imgs[1])
-        pred_i1_b = model_decoder(model=model, pred_vs=-2*pred_vs_i1_i2, apply_img=gt_imgs[2])
-
-        pred_i2_a = model_decoder(model=model, pred_vs=pred_vs_i1_i2, apply_img=gt_imgs[0])
-        pred_i2_b = model_decoder(model=model, pred_vs=-pred_vs_i1_i2, apply_img=gt_imgs[2])
-        pred_i2_c = model_decoder(model=model, pred_vs=-pred_vs_i1_i2[:, :-1, :] - pred_vs_i1_i2[:, 1:, :], apply_img=i4)
-
-        pred_i3_b = model_decoder(model=model, pred_vs=2*pred_vs_i1_i2, apply_img=gt_imgs[0])
-
-        pred_i4 = model_decoder(model=model, pred_vs=pred_vs_i1_i2[:, :-1, :] + pred_vs_i1_i2[:, 1:, :], apply_img=i2)
-
-
-        shortcut_loss = (
-            mse_loss_fn(pred_i1_a, gt_imgs[0], loss_fn_args['shortcut_loss_weight']) + \
-            mse_loss_fn(pred_i1_b, gt_imgs[0], loss_fn_args['shortcut_loss_weight']) + \
-            
-            mse_loss_fn(pred_i2_a, gt_imgs[1], loss_fn_args['shortcut_loss_weight']) + \
-            mse_loss_fn(pred_i2_b, gt_imgs[1], loss_fn_args['shortcut_loss_weight']) + \
-            mse_loss_fn(pred_i2_c, i2, loss_fn_args['shortcut_loss_weight']) + \
-
-            mse_loss_fn(pred_i3_b, gt_imgs[2], loss_fn_args['shortcut_loss_weight']) + \
-
-            mse_loss_fn(pred_i4, i4, loss_fn_args['shortcut_loss_weight'])
-        )
-
-
-    # isometry loss
-    if loss_fn_args['isometry_loss_weight']:
-        isometry_loss = isometry_loss_fn(pred_vs_i1_i2, loss_fn_args, gt_imgs[0], gt_imgs[1], loss_fn_args['isometry_loss_weight'])
 
 
 
-    loss_dict = {
-        'image_loss' : image_loss,
-        'loop_loss' : loop_loss,
-        'shortcut_loss' : shortcut_loss,
-        'isometry_loss' : isometry_loss,
-    }
+def spatial_locality_loss_fn(pred_vs, weight=1):
+    diff_spatial_positions = pred_vs[:, 1:] # same as cumsum[:, 1:] - cumsum[:, :-1]
 
-    return {k: v for k, v in loss_dict.items() if v is not None}
-'''
+    loss = weight * torch.norm(diff_spatial_positions, p=2, dim=-1).sum(dim=-1).mean()
+
+    return loss
 
 
 
@@ -446,6 +378,7 @@ def general_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
     loop_loss = None
     shortcut_loss = None
     isometry_loss = None
+    spatial_locality_loss = None
 
 
     path_len = images.shape[1]
@@ -455,6 +388,7 @@ def general_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
     gt_imgs[1] = gt_imgs[1].squeeze()
     gt_imgs[2] = gt_imgs[2].squeeze()
 
+    i1 = gt_imgs[0][:, :-1, :]
     i2 = gt_imgs[1][:, :-1, :]
     i4 = gt_imgs[1][:, 1:, :]
     
@@ -487,14 +421,14 @@ def general_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
     if loss_fn_args['shortcut_loss_weight']:
         shortcut_loss = (         
             focal_loss_fn(
-                model_decoder(model=model, pred_vs=-pred_vs_i1_i2[:, :-1, :] - pred_vs_i1_i2[:, 1:, :], apply_img=i4), 
-                i2, 
+                model_decoder(model=model, pred_vs=pred_vs_i1_i2[:, :-1, :] + pred_vs_i1_i2[:, 1:, :], apply_img=i2), 
+                i4, 
                 num_output_labels=model_args['num_output_labels'], 
                 weight=loss_fn_args['shortcut_loss_weight'],
             ) + \
             focal_loss_fn(
-                model_decoder(model=model, pred_vs=pred_vs_i1_i2[:, :-1, :] + pred_vs_i1_i2[:, 1:, :], apply_img=i2), 
-                i4, 
+                model_decoder(model=model, pred_vs=-pred_vs_i1_i2[:, :-1, :] - pred_vs_i1_i2[:, 1:, :], apply_img=i4), 
+                i2, 
                 num_output_labels=model_args['num_output_labels'], 
                 weight=loss_fn_args['shortcut_loss_weight'],
             )
@@ -508,6 +442,19 @@ def general_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
             # focal_loss_fn(
             #     model_decoder(model=model, pred_vs=-2*pred_vs_i1_i2, apply_img=gt_imgs[2]),
             #     gt_imgs[0],
+            #     num_output_labels=model_args['num_output_labels'],
+            #     weight=loss_fn_args['shortcut_loss_weight'],
+            # )
+            # even more other terms
+            # focal_loss_fn(
+            #     model_decoder(model=model, pred_vs=2*pred_vs_i1_i2[:, :-1, :] + pred_vs_i1_i2[:, 1:, :], apply_img=i1), 
+            #     i4,
+            #     num_output_labels=model_args['num_output_labels'], 
+            #     weight=loss_fn_args['shortcut_loss_weight'],
+            # ) + \
+            # focal_loss_fn(
+            #     model_decoder(model=model, pred_vs=-2*pred_vs_i1_i2[:, :-1, :] - pred_vs_i1_i2[:, 1:, :], apply_img=i4), 
+            #     i1, 
             #     num_output_labels=model_args['num_output_labels'], 
             #     weight=loss_fn_args['shortcut_loss_weight'],
             # )
@@ -522,56 +469,14 @@ def general_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
 
 
 
-    # '''
-    # volume minimization loss
-    # '''
-    # if model_args['v_dim'] > 2 and epoch_pct > 0.5:
-    #     centered_pred_vs = pred_vs_i1_i2 - pred_vs_i1_i2.mean(dim=1).unsqueeze(1)
-    #     cov = torch.bmm(centered_pred_vs.transpose(-1, -2), centered_pred_vs)
-    #     det = torch.det(cov + 1e-6 * torch.eye(model_args['v_dim']).cuda())
-
-    #     volume_loss = (-torch.log(det)).mean()
-
-
-    # '''
-    # spatial locality loss
-    # '''
-    # spatial_positions = pred_vs_i1_i2.cumsum(dim=1)[:, 1:, :] - pred_vs_i1_i2.cumsum(dim=1)[:, :-1, :]
-    # spatial_locality_loss = 0.5 * torch.norm(spatial_positions, p=2, dim=-1).mean(dim=-1).sum()
-
-
-    # '''
-    # eigenvalue loss
-    # '''
-    # if epoch_pct >= 0.5:
-    #     pred_vs = pred_vs_i1_i2.flatten(start_dim=0, end_dim=1)
-    #     pred_vs = pred_vs - pred_vs.mean(dim=0)
-    #     cov = torch.mm(pred_vs.t(), pred_vs) / (pred_vs.size(0) - 1)
-    #     eigs = torch.linalg.eigvalsh(cov).sort(descending=True).values
-    #     eig_cutoff = eigs.mean() - eigs.std() # 1 std from the mean
-    #     eigenvalue_loss = 1e1 * eigs[eigs <= eig_cutoff].sum()
-
-    
-    # '''
-    # entropy loss: WON'T WORK
-    # '''
-    # prob = pred_vs_i1_i2.softmax(dim=-1).mean(dim=-2)
-    # entropy_loss = 1e1 * -torch.sum(prob * torch.log(prob + 1e-7), dim=-1).mean()
-
-
-    # '''
-    # variance loss
-    # '''
-    # variance_loss = 1e1 * torch.var(torch.norm(pred_vs_i1_i2, p=2, dim=-1).flatten())
-
-
-    # '''
-    # normal vector loss
-    # '''
-    # pred_vs = pred_vs_i1_i2 - pred_vs_i1_i2.mean(dim=1, keepdim=True)
-    # _, _, Vt = torch.linalg.svd(pred_vs, full_matrices=False)
-    # normal_vectors = Vt[:, -1, :]
-    # normal_vector_loss = 1e1 * torch.var(normal_vectors, dim=0).sum()
+    '''
+    spatial locality loss
+    '''
+    if loss_fn_args['spatial_locality_loss']:
+        spatial_locality_loss = spatial_locality_loss_fn(
+            pred_vs=pred_vs_i1_i2, 
+            weight=loss_fn_args['spatial_locality_loss']
+        )
 
 
 
@@ -580,6 +485,7 @@ def general_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
         'loop_loss' : loop_loss,
         'shortcut_loss' : shortcut_loss,
         'isometry_loss' : isometry_loss,
+        'spatial_locality_loss' : spatial_locality_loss,
     }
 
     # filter out loss terms that are not None
@@ -635,7 +541,7 @@ def compute_eps(X, k, show=True):
         plt.ylabel('k-th Nearest Neighbor Distance')
         plt.title('k-NN Distance Plot for Determining EPS')
         plt.axhline(y=eps, color='r', linestyle='--')
-        plt.text(0, eps, f'Optimal eps = {eps:.2f}', color='red')
+        plt.text(0, eps, f'Optimal eps = {eps:.4f}', color='red')
         plt.show()
     
     return eps

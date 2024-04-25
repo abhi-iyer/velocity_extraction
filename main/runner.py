@@ -236,6 +236,38 @@ def save_figures(wandb_run, config, model, train_dataset, test_dataset, pred_spa
 
 
 if __name__ == '__main__':
+    runner('bird2d', seed=100)
+    runner('bird2d', seed=101)
+    runner('bird2d', seed=102)
+    runner('bird2d', seed=103)
+    runner('bird2d', seed=104)
+    runner('bird2d', seed=105)
+
+    runner('bird2d_3dim', seed=100)
+    runner('bird2d_3dim', seed=101)
+    runner('bird2d_3dim', seed=102)
+    runner('bird2d_3dim', seed=103)
+    runner('bird2d_3dim', seed=104)
+    runner('bird2d_3dim', seed=105)
+
+    runner('bird2d_ae', seed=100)
+
+    runner('bird3d', seed=100)
+    runner('bird3d', seed=101)
+    runner('bird3d', seed=102)
+    runner('bird3d', seed=103)
+    runner('bird3d', seed=104)
+    runner('bird3d', seed=105)
+
+    runner('bird3d_ae', seed=100)
+
+    runner('freq_3dim', seed=100)
+    runner('freq_3dim', seed=101)
+    runner('freq_3dim', seed=102)
+    runner('freq_3dim', seed=103)
+    runner('freq_3dim', seed=104)
+    runner('freq_3dim', seed=105)
+
     runner('blob_3dim', seed=100)
     runner('blob_3dim', seed=101)
     runner('blob_3dim', seed=102)

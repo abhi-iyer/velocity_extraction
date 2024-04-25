@@ -560,7 +560,6 @@ class StretchyBird2D(Dataset):
 
         shifted_stds = (gt_vs.cumsum(dim=0) + stds).float()
 
-        # images = self.create_body(tilt_degree=torch.randint(110, 191, size=(1,)).item())
         images = deepcopy(self.body)
         
 
@@ -589,9 +588,9 @@ class StretchyBird2D(Dataset):
         images = images.unsqueeze(1).cpu()
         images.clip_(0, 1)
 
-        gt_vs = gt_vs[1:, :].cpu()
-
         torch._assert(torch.isclose(images[0], images[-1], atol=1e-8).all(), "first and last image must be the same in a loop")
+        
+        gt_vs = gt_vs[1:, :].cpu()
 
         torch.save(images.float(), images_path)
         torch.save(gt_vs.float(), vs_path)
@@ -622,7 +621,7 @@ class StretchyBird2D(Dataset):
 
         shifted_stds = (gt_vs.cumsum(dim=0) + stds).float()
 
-        images = self.create_body(tilt_degree=torch.randint(110, 191, size=(1,)).item())
+        images = deepcopy(self.body)
         images = images[0, :].repeat(total_path_length, 1, 1)
 
 
@@ -731,6 +730,7 @@ class StretchyBird3D(Dataset):
         self.leg2_y = 17
         self.body[:, [19, 20], self.leg1_y] = 1
         self.body[:, [19, 20], self.leg2_y] = 1
+        self.body = self.create_body(tilt_degree=150)
 
         self.max_std = 10 / 1.3
         self.x_grid = torch.arange(10).cuda()
@@ -827,7 +827,7 @@ class StretchyBird3D(Dataset):
 
         shifted_stds = (gt_vs.cumsum(dim=0) + stds).float()
 
-        images = self.create_body(tilt_degree=torch.randint(110, 191, size=(1,)).item())
+        images = deepcopy(self.body)
 
 
         '''
@@ -888,7 +888,7 @@ class StretchyBird3D(Dataset):
 
         shifted_stds = (gt_vs.cumsum(dim=0) + stds).float()
 
-        images = self.create_body(tilt_degree=torch.randint(110, 191, size=(1,)).item())
+        images = deepcopy(self.body)
         images = images[0, :].repeat(total_path_length, 1, 1)
 
 
