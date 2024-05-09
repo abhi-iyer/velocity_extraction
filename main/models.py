@@ -361,3 +361,397 @@ class Autoencoder(nn.Module):
 
     def forward(self, images):
         return self.decoder_forward(self.encoder_forward(images))
+
+
+class ConvLSTMCell(nn.Module):
+    def __init__(self, input_dim, hidden_dim, kernel_size):
+        super().__init__()
+        
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.kernel_size = kernel_size
+        self.padding = kernel_size // 2
+
+        self.conv = nn.Conv2d(self.input_dim + self.hidden_dim, 4 * self.hidden_dim, self.kernel_size, padding=self.padding)
+
+    def forward(self, x, hidden):
+        h_cur, c_cur = hidden
+        combined = torch.cat([x, h_cur], dim=1)
+        combined_conv = self.conv(combined)
+        cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
+
+        i = torch.sigmoid(cc_i)
+        f = torch.sigmoid(cc_f)
+        o = torch.sigmoid(cc_o)
+        g = torch.tanh(cc_g)
+
+        c_next = f * c_cur + i * g
+        h_next = o * torch.tanh(c_next)
+
+        return h_next, c_next
+
+    def init_hidden(self, batch_size, shape):
+        return (torch.zeros(batch_size, self.hidden_dim, *shape, device=self.conv.weight.device),
+                torch.zeros(batch_size, self.hidden_dim, *shape, device=self.conv.weight.device))
+    
+
+class MCNet_32x12(nn.Module):
+    def __init__(self, seed, v_dim):
+        super().__init__()
+
+        # shared encoder
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+        )
+        
+
+        # motion encoder
+        self.convlstm = ConvLSTMCell(32, 32, 3)
+        self.motion_fc = nn.Sequential(
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, v_dim),
+        )
+
+
+        # content encoder
+        self.content_fc = nn.Sequential(
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, v_dim),
+        )
+
+
+        # combination layers
+        self.combination_fc = nn.Sequential(
+            nn.Linear(v_dim, 32),
+            nn.ReLU(),
+            nn.Linear(32, 64),
+            nn.ReLU(),
+            nn.Linear(64, 128),
+            nn.ReLU(),
+            nn.Linear(128, 256),            
+        )
+        self.combination_conv = nn.Sequential(
+            nn.Upsample(size=(8, 4), mode='bilinear', align_corners=False),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Upsample(size=(16, 8), mode='bilinear', align_corners=False),
+            nn.Conv2d(32, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Upsample(size=(32, 12), mode='bilinear', align_corners=False),
+            nn.Conv2d(16, 1, kernel_size=3, padding=1),
+            nn.Sigmoid(),
+        )
+
+
+        torch.manual_seed(seed)
+        self.apply(he_init)
+
+    
+    def motion_encoder(self, x, hidden_state):
+        x = self.encoder(x)
+
+        h_next, c_next = self.convlstm(x, hidden_state)
+
+        x = self.motion_fc(h_next.view(h_next.size(0), -1))
+
+        return x, (h_next, c_next)
+
+
+    def content_encoder(self, x):
+        x = self.encoder(x)
+
+        x = self.content_fc(x.view(x.size(0), -1))
+
+        return x
+
+    
+    def combination_layers(self, x):
+        bs, L, _ = x.shape
+
+        x = x.flatten(start_dim=0, end_dim=1)
+
+        x = self.combination_fc(x).view(-1, 32, 4, 2)
+        x = self.combination_conv(x)
+
+        x = x.view(bs, L, 1, 32, 12)
+
+        return x
+
+    
+    def forward(self, x):
+        bs, L, _, _, _ = x.shape
+
+        motion_inputs = x[:, 1:, :] - x[:, :-1, :]
+
+        hidden_state = self.convlstm.init_hidden(bs, (4, 2))
+
+        reconstruction_in = []
+
+        for t in range(L - 1):
+            motion_feature, hidden_state = self.motion_encoder(motion_inputs[:, t, :], hidden_state)
+
+            reconstruction_in.append(motion_feature)
+
+        reconstruction_in.append(self.content_encoder(x[:, -1, :]))
+
+        reconstruction_in = torch.stack(reconstruction_in, dim=1)
+        reconstruction_out = self.combination_layers(reconstruction_in)
+        
+        return reconstruction_out
+
+
+class MCNet_16x16(nn.Module):
+    def __init__(self, seed, v_dim):
+        super().__init__()
+
+        # shared encoder
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+        )
+        
+
+        # motion encoder
+        self.convlstm = ConvLSTMCell(32, 32, 3)
+        self.motion_fc = nn.Sequential(
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, v_dim),
+        )
+
+
+        # content encoder
+        self.content_fc = nn.Sequential(
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, v_dim),
+        )
+
+
+        # combination layers
+        self.combination_fc = nn.Sequential(
+            nn.Linear(v_dim, 32),
+            nn.ReLU(),
+            nn.Linear(32, 64),
+            nn.ReLU(),
+            nn.Linear(64, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),            
+        )
+        self.combination_conv = nn.Sequential(
+            nn.Upsample(size=(4, 4), mode='bilinear', align_corners=False),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Upsample(size=(8, 8), mode='bilinear', align_corners=False),
+            nn.Conv2d(32, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Upsample(size=(16, 16), mode='bilinear', align_corners=False),
+            nn.Conv2d(16, 1, kernel_size=3, padding=1),
+            nn.Sigmoid(),
+        )
+
+
+        torch.manual_seed(seed)
+        self.apply(he_init)
+
+    
+    def motion_encoder(self, x, hidden_state):
+        x = self.encoder(x)
+
+        h_next, c_next = self.convlstm(x, hidden_state)
+
+        x = self.motion_fc(h_next.view(h_next.size(0), -1))
+
+        return x, (h_next, c_next)
+
+
+    def content_encoder(self, x):
+        x = self.encoder(x)
+
+        x = self.content_fc(x.view(x.size(0), -1))
+
+        return x
+
+    
+    def combination_layers(self, x):
+        bs, L, _ = x.shape
+
+        x = x.flatten(start_dim=0, end_dim=1)
+
+        x = self.combination_fc(x).view(-1, 32, 2, 2)
+        x = self.combination_conv(x)
+
+        x = x.view(bs, L, 1, 16, 16)
+
+        return x
+
+    
+    def forward(self, x):
+        bs, L, _, _, _ = x.shape
+
+        motion_inputs = x[:, 1:, :] - x[:, :-1, :]
+
+        hidden_state = self.convlstm.init_hidden(bs, (2, 2))
+
+        reconstruction_in = []
+
+        for t in range(L - 1):
+            motion_feature, hidden_state = self.motion_encoder(motion_inputs[:, t, :], hidden_state)
+
+            reconstruction_in.append(motion_feature)
+
+        reconstruction_in.append(self.content_encoder(x[:, -1, :]))
+
+        reconstruction_in = torch.stack(reconstruction_in, dim=1)
+        reconstruction_out = self.combination_layers(reconstruction_in)
+        
+        return reconstruction_out
+
+
+class MCNet_1x100(nn.Module):
+    def __init__(self, seed, v_dim):
+        super().__init__()
+
+        # shared encoder
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1),
+            nn.ReLU(),
+        )
+        
+
+        # motion encoder
+        self.convlstm = ConvLSTMCell(32, 32, 3)
+        self.motion_fc = nn.Sequential(
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, v_dim),
+        )
+
+
+        # content encoder
+        self.content_fc = nn.Sequential(
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, v_dim),
+        )
+
+
+        # combination layers
+        self.combination_fc = nn.Sequential(
+            nn.Linear(v_dim, 32),
+            nn.ReLU(),
+            nn.Linear(32, 64),
+            nn.ReLU(),
+            nn.Linear(64, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),            
+        )
+        self.combination_conv = nn.Sequential(
+            nn.Upsample(size=(4, 4), mode='bilinear', align_corners=False),
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Upsample(size=(8, 8), mode='bilinear', align_corners=False),
+            nn.Conv2d(32, 16, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Upsample(size=(10, 10), mode='bilinear', align_corners=False),
+            nn.Conv2d(16, 1, kernel_size=3, padding=1),
+            nn.Sigmoid(),
+        )
+
+
+        torch.manual_seed(seed)
+        self.apply(he_init)
+
+    
+    def motion_encoder(self, x, hidden_state):
+        x = self.encoder(x)
+
+        h_next, c_next = self.convlstm(x, hidden_state)
+
+        x = self.motion_fc(h_next.view(h_next.size(0), -1))
+
+        return x, (h_next, c_next)
+
+
+    def content_encoder(self, x):
+        x = self.encoder(x)
+
+        x = self.content_fc(x.view(x.size(0), -1))
+
+        return x
+
+    
+    def combination_layers(self, x):
+        bs, L, _ = x.shape
+
+        x = x.flatten(start_dim=0, end_dim=1)
+
+        x = self.combination_fc(x).view(-1, 32, 2, 2)
+        x = self.combination_conv(x)
+
+        x = x.view(bs, L, 1, 10, 10)
+
+        return x
+
+    
+    def forward(self, x):
+        bs, L, C, _, _ = x.shape
+
+        x = x.view(bs, L, C, 10, 10)
+
+        motion_inputs = x[:, 1:, :] - x[:, :-1, :]
+
+        hidden_state = self.convlstm.init_hidden(bs, (2, 2))
+
+        reconstruction_in = []
+
+        for t in range(L - 1):
+            motion_feature, hidden_state = self.motion_encoder(motion_inputs[:, t, :], hidden_state)
+
+            reconstruction_in.append(motion_feature)
+
+        reconstruction_in.append(self.content_encoder(x[:, -1, :]))
+
+        reconstruction_in = torch.stack(reconstruction_in, dim=1)
+        reconstruction_out = self.combination_layers(reconstruction_in).view(bs, L, C, 1, 100)
+        
+        return reconstruction_out

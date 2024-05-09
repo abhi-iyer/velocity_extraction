@@ -20,6 +20,7 @@ from sklearn.manifold import Isomap
 from umap import UMAP
 from sklearn.decomposition import PCA
 import math
+from sklearn.linear_model import RANSACRegressor
 
 from PIL import Image
 from collections import defaultdict

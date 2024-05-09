@@ -175,6 +175,8 @@ def plotly_scatter(data, colors, title, x_range=None, y_range=None):
     if colors is None:
         hex_colors = ['#000000' for _ in range(data.shape[0])]
     else:
+        colors = np.array(colors)
+        
         hex_colors = ['#%02x%02x%02x' % tuple((rgba * 255).astype(int)[:3]) for rgba in colors]
 
     if data.shape[1] == 3:
@@ -212,11 +214,21 @@ def plotly_scatter(data, colors, title, x_range=None, y_range=None):
             yaxis_title='dim 2',
 
         )
-    elif data.shape[1] == 1:
-        # plot data vs. its color (R)
+    elif data.shape[1] == 1 or data.ndim == 1:
+        data = data.reshape(-1, 1)
+        # # plot data vs. its color (R)
+        # scatter = go.Scatter(
+        #     x=data[:, 0],
+        #     y=(colors[:, 0] * 255).astype(int),
+        #     mode='markers',
+        #     marker=dict(
+        #         size=5,
+        #         color=hex_colors
+        #     )
+        # )
         scatter = go.Scatter(
             x=data[:, 0],
-            y=(colors[:, 0] * 255).astype(int),
+            y=np.zeros(data.shape[0]),
             mode='markers',
             marker=dict(
                 size=5,
@@ -226,7 +238,7 @@ def plotly_scatter(data, colors, title, x_range=None, y_range=None):
 
         args = dict(
             xaxis_title='dim 1',
-            yaxis_title='color value',
+            yaxis_title='dim 2',
         )
     else:
         raise Exception('Unsupported data dimensionality for a plotly scatter plot.')
@@ -362,9 +374,11 @@ def mse_loss_fn(input_data, target_data, weight=1):
 
 
 def spatial_locality_loss_fn(pred_vs, weight=1):
-    diff_spatial_positions = pred_vs[:, 1:] # same as cumsum[:, 1:] - cumsum[:, :-1]
+    loss = weight * nn.SmoothL1Loss(reduction='none')(
+        pred_vs,
+        torch.zeros_like(pred_vs).cuda(),
+    ).flatten(start_dim=1).sum(dim=-1).mean()
 
-    loss = weight * torch.norm(diff_spatial_positions, p=2, dim=-1).sum(dim=-1).mean()
 
     return loss
 
@@ -473,10 +487,11 @@ def general_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
     spatial locality loss
     '''
     if loss_fn_args['spatial_locality_loss']:
-        spatial_locality_loss = spatial_locality_loss_fn(
-            pred_vs=pred_vs_i1_i2, 
-            weight=loss_fn_args['spatial_locality_loss']
-        )
+        if epoch_pct < 0.5:
+            spatial_locality_loss = spatial_locality_loss_fn(
+                pred_vs=pred_vs_i1_i2,
+                weight=loss_fn_args['spatial_locality_loss']
+            )
 
 
 
@@ -493,12 +508,32 @@ def general_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
 
 
 
-def baseline_loss_fn(model, images, loss_fn_args, model_args):
+def ae_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
     bs = images.shape[0]
 
     image_loss = mse_loss_fn(
         input_data=model(images.flatten(start_dim=0, end_dim=1)).unflatten(dim=0, sizes=(bs, -1)),
         target_data=images,
+        weight=loss_fn_args['image_loss_weight'],
+    )
+
+
+    loss_dict = {
+        'image_loss' : image_loss,
+    }
+
+    # filter out loss terms that are not None
+    return {k: v for k, v in loss_dict.items() if v is not None}
+
+
+def mcnet_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
+    L = images.shape[1]
+
+    i1, i2, _ = get_i1_i2_i3(images[:, :L//2, :])
+
+    image_loss = mse_loss_fn(
+        input_data=model(i1),
+        target_data=i2,
         weight=loss_fn_args['image_loss_weight'],
     )
 

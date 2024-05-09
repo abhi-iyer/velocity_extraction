@@ -99,7 +99,7 @@ class ShrinkingBlob(Dataset):
         '''
         generate velocities
         '''
-        means = torch.DoubleTensor(2).cuda().uniform_(-0.8, 0.8)
+        means = torch.zeros(2).cuda()
         stds = torch.DoubleTensor(2).cuda().uniform_(self.std_init_range[0], self.std_init_range[1]).repeat(self.total_path_length, 1)
 
 
@@ -150,7 +150,7 @@ class ShrinkingBlob(Dataset):
         
         total_path_length = length + 1
 
-        means = torch.DoubleTensor(2).cuda().uniform_(-0.8, 0.8)
+        means = torch.zeros(2).cuda()
         stds = torch.DoubleTensor(2).cuda().uniform_(self.std_init_range[0], self.std_init_range[1]).repeat(total_path_length, 1)
 
         vs = []
@@ -353,26 +353,42 @@ class ContinuousShiftingMeansLoops(Dataset):
         
         total_path_length = length + 1
 
-        vs = torch.DoubleTensor(length, 2).cuda().uniform_(-self.max_mean_shift, self.max_mean_shift)
-        gt_vs = torch.vstack((torch.zeros(2).cuda(), vs))
+        # vs = torch.DoubleTensor(length, 2).cpu().uniform_(-self.max_mean_shift, self.max_mean_shift)
+        # gt_vs = torch.vstack((torch.zeros(2).cpu(), vs))
 
-        means = torch.DoubleTensor(self.num_gaussians, 2).cuda().uniform_(
+        means = torch.DoubleTensor(self.num_gaussians, 2).cpu().uniform_(
             min(self.mean_init_range),
             max(self.mean_init_range)
         ).repeat(total_path_length, 1, 1)
 
-        std = torch.DoubleTensor(self.num_gaussians, 2).cuda().uniform_(
+        std = torch.DoubleTensor(self.num_gaussians, 2).cpu().uniform_(
             min(self.std_init_range),
             max(self.std_init_range)
         ).repeat(total_path_length, 1, 1)
+
+
+        vs = []
+        cumsum = means[0,:].cpu()
+        while len(vs) < length:
+            v = torch.DoubleTensor(2).uniform_(-self.max_mean_shift, self.max_mean_shift)
+
+            if inclusive_range(cumsum + v, min(self.mean_init_range), max(self.mean_init_range)):
+                vs.append(v)
+                cumsum += v
+        
+        gt_vs = torch.vstack((
+            torch.zeros(2).cpu(),
+            torch.stack(vs).cpu()
+        ))
+
 
         mean = gt_vs.cumsum(dim=0).unsqueeze(1).repeat(1, self.num_gaussians, 1) + means
 
         xs = torch.linspace(self.mean_init_range[0], self.mean_init_range[1], steps=self.patch_size[0]*4).double()
         ys = torch.linspace(self.mean_init_range[0], self.mean_init_range[1], steps=self.patch_size[0]*4).double()
         X, Y = torch.meshgrid(xs, ys, indexing='xy')
-        X = X.repeat(total_path_length, self.num_gaussians, 1, 1).cuda()
-        Y = Y.repeat(total_path_length, self.num_gaussians, 1, 1).cuda()
+        X = X.repeat(total_path_length, self.num_gaussians, 1, 1).cpu()
+        Y = Y.repeat(total_path_length, self.num_gaussians, 1, 1).cpu()
 
         images = self.get_center_patch(torch.exp(
             -((X - mean[:, :, 0].view(total_path_length, self.num_gaussians, 1, 1))**2/(2 * std[:, :, 0].view(total_path_length, self.num_gaussians, 1, 1)**2) + \
