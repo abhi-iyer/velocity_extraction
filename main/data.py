@@ -146,7 +146,7 @@ class ShrinkingBlob(Dataset):
 
     
     def generate_sample_trajectory(self, length):
-        torch.manual_seed(torch.randint(0, len(self.seeds), size=(1,)).item())
+        fix_randomness(seed=0)
         
         total_path_length = length + 1
 
@@ -349,12 +349,9 @@ class ContinuousShiftingMeansLoops(Dataset):
 
     
     def generate_sample_trajectory(self, length):
-        torch.manual_seed(torch.randint(0, len(self.seeds), size=(1,)).item())
+        fix_randomness(seed=100)
         
         total_path_length = length + 1
-
-        # vs = torch.DoubleTensor(length, 2).cpu().uniform_(-self.max_mean_shift, self.max_mean_shift)
-        # gt_vs = torch.vstack((torch.zeros(2).cpu(), vs))
 
         means = torch.DoubleTensor(self.num_gaussians, 2).cpu().uniform_(
             min(self.mean_init_range),
@@ -370,9 +367,9 @@ class ContinuousShiftingMeansLoops(Dataset):
         vs = []
         cumsum = means[0,:].cpu()
         while len(vs) < length:
-            v = torch.DoubleTensor(2).uniform_(-self.max_mean_shift, self.max_mean_shift)
+            v = torch.DoubleTensor(2).uniform_(-self.max_mean_shift, self.max_mean_shift).cpu()
 
-            if inclusive_range(cumsum + v, min(self.mean_init_range), max(self.mean_init_range)):
+            if inclusive_range(cumsum + v, 1.5 * min(self.mean_init_range), 1.5 * max(self.mean_init_range)):
                 vs.append(v)
                 cumsum += v
         
@@ -380,7 +377,7 @@ class ContinuousShiftingMeansLoops(Dataset):
             torch.zeros(2).cpu(),
             torch.stack(vs).cpu()
         ))
-
+        
 
         mean = gt_vs.cumsum(dim=0).unsqueeze(1).repeat(1, self.num_gaussians, 1) + means
 
@@ -615,7 +612,7 @@ class StretchyBird2D(Dataset):
 
 
     def generate_sample_trajectory(self, length):
-        torch.manual_seed(torch.randint(0, len(self.seeds), size=(1,)).item())
+        fix_randomness(seed=0)
 
         total_path_length = length + 1
 
@@ -882,7 +879,7 @@ class StretchyBird3D(Dataset):
 
     
     def generate_sample_trajectory(self, length):
-        torch.manual_seed(torch.randint(0, len(self.seeds), size=(1,)).item())
+        fix_randomness(seed=0)
 
         total_path_length = length + 1
 
@@ -1078,7 +1075,7 @@ class FrequencyShift1D(Dataset):
     
 
     def generate_sample_trajectory(self, length):
-        torch.manual_seed(torch.randint(0, len(self.seeds), size=(1,)).item())
+        fix_randomness(seed=0)
 
         total_path_length = length + 1
 

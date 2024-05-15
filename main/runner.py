@@ -236,44 +236,4 @@ def save_figures(wandb_run, config, model, train_dataset, test_dataset, pred_spa
 
 
 if __name__ == '__main__':
-    runner('freq_ae', seed=100, generate_figures=False)
-    runner('freq_ae', seed=101, generate_figures=False)
-    runner('freq_ae', seed=102, generate_figures=False)
-    runner('freq_ae', seed=103, generate_figures=False)
-    runner('freq_ae', seed=104, generate_figures=False)
-    runner('freq_ae', seed=105, generate_figures=False)
-
-    runner('blob_mcnet', seed=100, generate_figures=False)
-    runner('blob_mcnet', seed=101, generate_figures=False)
-    runner('blob_mcnet', seed=102, generate_figures=False)
-    runner('blob_mcnet', seed=103, generate_figures=False)
-    runner('blob_mcnet', seed=104, generate_figures=False)
-    runner('blob_mcnet', seed=105, generate_figures=False)
-
-    runner('gauss_blobs_mcnet', seed=100, generate_figures=False)
-    runner('gauss_blobs_mcnet', seed=101, generate_figures=False)
-    runner('gauss_blobs_mcnet', seed=102, generate_figures=False)
-    runner('gauss_blobs_mcnet', seed=103, generate_figures=False)
-    runner('gauss_blobs_mcnet', seed=104, generate_figures=False)
-    runner('gauss_blobs_mcnet', seed=105, generate_figures=False)
-
-    runner('bird2d_mcnet', seed=100, generate_figures=False)
-    runner('bird2d_mcnet', seed=101, generate_figures=False)
-    runner('bird2d_mcnet', seed=102, generate_figures=False)
-    runner('bird2d_mcnet', seed=103, generate_figures=False)
-    runner('bird2d_mcnet', seed=104, generate_figures=False)
-    runner('bird2d_mcnet', seed=105, generate_figures=False)
-
-    runner('bird3d_mcnet', seed=100, generate_figures=False)
-    runner('bird3d_mcnet', seed=101, generate_figures=False)
-    runner('bird3d_mcnet', seed=102, generate_figures=False)
-    runner('bird3d_mcnet', seed=103, generate_figures=False)
-    runner('bird3d_mcnet', seed=104, generate_figures=False)
-    runner('bird3d_mcnet', seed=105, generate_figures=False)
-
-    runner('freq_mcnet', seed=100, generate_figures=False)
-    runner('freq_mcnet', seed=101, generate_figures=False)
-    runner('freq_mcnet', seed=102, generate_figures=False)
-    runner('freq_mcnet', seed=103, generate_figures=False)
-    runner('freq_mcnet', seed=104, generate_figures=False)
-    runner('freq_mcnet', seed=105, generate_figures=False)
+    runner('freq', seed=100)

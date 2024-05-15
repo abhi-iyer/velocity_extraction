@@ -531,8 +531,10 @@ def mcnet_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
 
     i1, i2, _ = get_i1_i2_i3(images[:, :L//2, :])
 
+    _, pred_i2 = model(i1)
+
     image_loss = mse_loss_fn(
-        input_data=model(i1),
+        input_data=pred_i2,
         target_data=i2,
         weight=loss_fn_args['image_loss_weight'],
     )
@@ -612,6 +614,11 @@ def apply_optimal_transformation(true, pred, true_filtered, pred_filtered):
 
 
 def compute_error_metric(true, pred, num_clusters=30, show_knee_visualization=False):
+    # if intrinsic/extrinsic velocities both 1D, move to 2D (make one dim just zeros)
+    if true.shape[1] == 1 and pred.shape[1] == 1:
+        true = np.hstack((true, np.zeros((true.shape[0], 1))))
+        pred = np.hstack((pred, np.zeros((pred.shape[0], 1))))
+
     # eps is the maximum distance between two samples for one to be considered as 
     # in the neighborhood of the other. computed by using k-NN.
     eps = compute_eps(pred, k=num_clusters, show=show_knee_visualization)
@@ -632,31 +639,50 @@ def compute_error_metric(true, pred, num_clusters=30, show_knee_visualization=Fa
     return error, transformed_pred
 
 
-def isomap_reduction(tensor, reduced_dim):
+def isomap_reduction(tensor, config, reduced_dim):
+    fix_randomness(seed=42)
+
     T, H, W = tensor.shape
 
     isomap = Isomap(n_neighbors=5, n_components=reduced_dim)
     embedding = isomap.fit_transform(np.reshape(tensor, (T, H * W)))
 
-    return embedding[1:, :] - embedding[:-1, :]
+    velocities = embedding[1:, :] - embedding[:-1, :]
+
+    if config['task_dim'] == 1 and velocities.shape[1] == 1:
+        velocities = np.hstack((velocities, np.zeros((velocities.shape[0], 1))))
+
+    return velocities
 
 
-def umap_reduction(tensor, reduced_dim):
+def umap_reduction(tensor, config, reduced_dim):
+    fix_randomness(seed=42)
+
     T, H, W = tensor.shape
 
     umap = UMAP(n_components=reduced_dim)
     embedding = umap.fit_transform(np.reshape(tensor, (T, H * W)))
 
-    return embedding[1:, :] - embedding[:-1, :]
+    velocities = embedding[1:, :] - embedding[:-1, :]
+
+    if config['task_dim'] == 1 and velocities.shape[1] == 1:
+        velocities = np.hstack((velocities, np.zeros((velocities.shape[0], 1))))
+
+    return velocities
 
 
-def pca_reduction(tensor, reduced_dim):
+def pca_reduction(tensor, config, reduced_dim):
     T, H, W = tensor.shape
 
     pca = PCA(n_components=reduced_dim)
     embedding = pca.fit_transform(np.reshape(tensor, (T, H * W)))
 
-    return embedding[1:, :] - embedding[:-1, :]
+    velocities = embedding[1:, :] - embedding[:-1, :]
+
+    if config['task_dim'] == 1 and velocities.shape[1] == 1:
+        velocities = np.hstack((velocities, np.zeros((velocities.shape[0], 1))))
+
+    return velocities
 
 
 def ae_reduction(tensor, config, model_code):
@@ -670,7 +696,12 @@ def ae_reduction(tensor, config, model_code):
     with torch.no_grad():
         embedding = model.encoder(tensor).cpu().numpy()
 
-    return embedding[1:, :] - embedding[:-1, :]
+    velocities = embedding[1:, :] - embedding[:-1, :]
+
+    if config['task_dim'] == 1 and velocities.shape[1] == 1:
+        velocities = np.hstack((velocities, np.zeros((velocities.shape[0], 1))))
+
+    return velocities
 
 
 def mcnet_reduction(tensor, config, model_code):
@@ -680,6 +711,163 @@ def mcnet_reduction(tensor, config, model_code):
     model.load_state_dict(torch.load('./models/model_{}.pt'.format(model_code)))
     _ = model.eval()
 
+
+    with torch.no_grad():
+        tensor = tensor.view(1, -1, 1, *tensor.shape[1:])
+
+        pred_vs, _ = model(tensor)
+        pred_vs = pred_vs.squeeze(0).cpu().numpy()
+        
+    if config['task_dim'] == 1 and pred_vs.shape[1] == 1:
+        pred_vs = np.hstack((pred_vs, np.zeros((pred_vs.shape[0], 1))))
+
+    return pred_vs
+
+
+def our_reduction(tensor, config, model_code):
+    model = config['model_class'](seed=0, **config['model_args']).cuda()
+    model.load_state_dict(torch.load('./models/model_{}.pt'.format(model_code)))
+    _ = model.eval()
+
+    i1 = tensor[:-1, :].unsqueeze(0).cuda()
+    i2 = tensor[1:, :].unsqueeze(0).cuda()
+
+    with torch.no_grad():
+        pred_vs = model_encoder(model=model, first_img=i1, second_img=i2)
+
+        pred_vs = pred_vs.squeeze(0).cpu().numpy()
+
+    if config['task_dim'] == 1 and pred_vs.shape[1] == 1:
+        pred_vs = np.hstack((pred_vs, np.zeros((pred_vs.shape[0], 1))))
+
+    return pred_vs
+
+
+def explained_variance(tensor):
+    # tensor is a N x D tensor
+    pca = PCA()
+
+    pca.fit(tensor - tensor.mean(axis=0))
+
+    return pca.explained_variance_ratio_
+
+
+def firing_rates(
+        config,
+        gt_velocities, 
+        pred_velocities,
+        resample_every=30,
+        T=10,
+        dt=0.002,
+        base_grid_period=0.35,
+    ):
+    gt_x = gt_velocities.cumsum(axis=0)
+
+    pred_x = [np.zeros(2)]
+
+    for i in range(pred_velocities.shape[0]):
+        if (i % resample_every) == 0:
+            pred_x.append(gt_x[i, :])
+        else:
+            pred_x.append(pred_x[-1] + pred_velocities[i, :])
+
+    pred_x = np.stack(pred_x)[1:, :]
+
+    num_grid_modules = 3
+    num_neurons_per_module = 30
+
+    max_firing_rate = 15 # hertz
+    baseline_firing_rate = 0.02 * max_firing_rate # out-of-field
+
+    time = np.arange(dt, T + dt, dt)
+
+    base_grid_period *= 8
+    grid_periods = base_grid_period + np.arange(num_grid_modules) * base_grid_period * np.sqrt(2)
+
+
+    # define 3 plane waves that generate regular triangular lattice.
+    # sum of cosine of dot product of position and b1, b2, b3 determines firing rate of cell at that position.
+    # firing rates then form a hexagonal grid.
+    # tl;dr: interference with these 3 vectors generates a hexagonal firing field/lattice.
+    b1 = np.array([0, 2/np.sqrt(3)]) # oriented vertically, contributes to up/down components of hexagonal pattern
+    b2 = np.array([1, -1/np.sqrt(3)]) # oriented with negative slope
+    b3 = np.array([1, 1/np.sqrt(3)]) # oriented with positive slope
+
+
+    # firing rates for all cells, for all modules
+    # randomly distributed spatial phases for all cells, for all modules
+    firing_rates = [np.zeros((num_neurons_per_module, len(time))) for _ in range(num_grid_modules)]
+    preferred_phases = [np.random.rand(num_neurons_per_module, 2) for _ in range(num_grid_modules)]
+
+
+    # generate grid cell rates over trajectory
+    for i in range(num_neurons_per_module):
+        for j in range(num_grid_modules):
+            phase_offset = preferred_phases[j][i, :].reshape(-1, 1) * np.ones((2, len(time)))
+
+            cos1 = np.cos(2 * np.pi * (b1/grid_periods[j]).reshape(1, -1) @ (pred_x.T - phase_offset))
+            cos2 = np.cos(2 * np.pi * (b2/grid_periods[j]).reshape(1, -1) @ (pred_x.T - phase_offset))
+            cos3 = np.cos(2 * np.pi * (b3/grid_periods[j]).reshape(1, -1) @ (pred_x.T - phase_offset))
+            
+            firing_rates[j][i, :] = baseline_firing_rate + (max_firing_rate - baseline_firing_rate) * \
+                np.maximum(0, (1/3) * (cos1 + cos2 + cos3) - 0.2)
     
 
-    return
+    # visualize spatial tuning of a cell at random: pick one cell from one module
+    cellind = np.random.randint(0, num_neurons_per_module)  
+    N = 100j
+
+    max_vals = gt_x.max(axis=0)
+    min_vals = gt_x.min(axis=0)
+
+    fig = plt.figure(figsize=(6, 6))
+
+    if config['task_dim'] == 1:
+        extent = [min_vals[0], max_vals[0]]
+        xs = np.mgrid[extent[0]:extent[1]:N]
+
+        resampled = griddata(gt_x[:, 0], firing_rates[0][cellind, :], xs)
+
+        plt.plot(resampled.T)
+        plt.xlabel('dim 1')
+        plt.ylabel('firing rate')
+
+        ax = plt.gca()
+        ax.xaxis.set_tick_params(labelbottom=False)
+        ax.yaxis.set_tick_params(labelleft=False)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+    elif config['task_dim'] == 2:
+        extent = [min_vals[0], max_vals[0], min_vals[1], max_vals[1]]
+        xs, ys = np.mgrid[extent[0]:extent[1]:N, extent[2]:extent[3]:N]
+
+        resampled = griddata((gt_x[:, 0], gt_x[:, 1]), firing_rates[0][cellind, :], (xs, ys))
+
+        plt.imshow(resampled.T, extent=extent, interpolation='gaussian', cmap='Spectral_r')
+        
+        ax = plt.gca()
+        ax.xaxis.set_tick_params(labelbottom=False)
+        ax.yaxis.set_tick_params(labelleft=False)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+    else:
+        raise Exception('task dim > 2 is not supported')
+
+
+    # plt.title('Spatial tuning of \nsynthetic grid cells given\n model generated velocities \nalong true trajectory')
+    
+
+    return fig
+
+
+
+
+
+
+

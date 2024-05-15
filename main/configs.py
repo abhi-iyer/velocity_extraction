@@ -8,6 +8,7 @@ from utils import *
 
 
 shrinkingblob = dict(
+    task_dim=2,
     lr=5e-4,
     num_epochs=800,
     model_class=None,
@@ -35,6 +36,7 @@ shrinkingblob = dict(
 
 
 contshiftingmeans = dict(
+    task_dim=2,
     lr=5e-4,
     num_epochs=800,
     model_class=None,
@@ -62,6 +64,7 @@ contshiftingmeans = dict(
 
 
 stretchybird2d = dict(
+    task_dim=2,
     lr=5e-4,
     num_epochs=800,
     model_class=None,
@@ -88,6 +91,7 @@ stretchybird2d = dict(
 
 
 stretchybird3d = dict(
+    task_dim=3,
     lr=5e-4,
     num_epochs=800,
     model_class=None,
@@ -114,6 +118,7 @@ stretchybird3d = dict(
 
 
 frequencyshift1d = dict(
+    task_dim=1,
     lr=1e-4,
     num_epochs=1200,
     model_class=None,
@@ -186,6 +191,7 @@ blob_ae.update(
 blob_ae['model_args'].update(
     input_shape=(16, 16),
     layer_sizes=(256, 128, 64, 32, 16, 8, 4, 2),
+    v_dim=2,
 )
 blob_ae['loss_fn_args'].update(
     image_loss_weight=1e3,
@@ -256,6 +262,7 @@ gauss_blobs_ae.update(
 gauss_blobs_ae['model_args'].update(
     input_shape=(16, 16),
     layer_sizes=(256, 128, 64, 32, 16, 8, 4, 2),
+    v_dim=2,
 )
 gauss_blobs_ae['loss_fn_args'].update(
     image_loss_weight=1e3,
@@ -326,6 +333,7 @@ bird2d_ae.update(
 bird2d_ae['model_args'].update(
     input_shape=(32, 12),
     layer_sizes=(384, 192, 96, 48, 24, 12, 6, 2),
+    v_dim=2,
 )
 bird2d_ae['loss_fn_args'].update(
     image_loss_weight=1e3,
@@ -378,6 +386,7 @@ bird3d_ae.update(
 bird3d_ae['model_args'].update(
     input_shape=(32, 12),
     layer_sizes=(384, 192, 96, 48, 24, 12, 6, 3),
+    v_dim=3,
 )
 bird3d_ae['loss_fn_args'].update(
     image_loss_weight=1e3,
@@ -466,6 +475,7 @@ freq_ae.update(
 freq_ae['model_args'].update(
     input_shape=(1, 100),
     layer_sizes=(100, 80, 60, 40, 20, 10, 5, 1),
+    v_dim=1,
 )
 freq_ae['loss_fn_args'].update(
     image_loss_weight=1e3,
@@ -525,25 +535,25 @@ EXP_CODES = dict(
     freq=['z528sp0x', 'dh5950bh', '422dsi5h', 'cj8x2eoo', '8z118ppg', 'tnhupber'],
     freq_2dim=['70yf9dxl', 'yajgq80l', '5m5okdv0', '261ihs6j', 'kigt2pvn', 'vlvcjjlh'],
     freq_3dim=['w0z5rowu', 'nrak4phj', 'z296devh', 'u0tp2unu', 't7cmkkru', 'cecuup8u'],
-    freq_ae=['', '', '', '', '', ''],
-    freq_mcnet=[''],
+    freq_ae=['jrkp1opx', 'b187kcxw', '9l5tzvgx', 'r6znjmpv', '2wpo2rgr', 'j5dt5bdm'],
+    freq_mcnet=['1lwd02te', 'wk3mafka', '10soeyja', 'v4nckzde', 'fsyqscga', '8hzhx9xg'],
 
     blob=['lrf29umi', 'iy4ekrmv', '3nhdswr0', 'b434tgs6', 'ev40t32f', 'bzjch81e'],
     blob_3dim=['785o0lfi', '8d3yb4ty', 'x8kauyhn', 'nczimes7', '5p3wuqja', 'y1rf1osf'],
     blob_ae=['qf6jy4p4', 'phvw3mma', '9i6957v9', 'syrwzfwy', 'i4pu66v4', 'xdlloemp'],
-    blob_mcnet=[''],
+    blob_mcnet=['rjtkvfjz', 'wxawvpn9', 'iohysj37', '05xbakxc', 'ktmpsew7', '3h3hihcw'],
 
     gauss_blobs=['vg2es21d', 'slj7afhk', '2jc1ffd7', 'q81c8b20', 'pd60xufu', 'aq61yki5'],
     gauss_blobs_3dim=['qxjymcmk', 'tkhky706', 'gvb7vgly', 'eq4vnb86', 'qxpvetjm', 'npfcju5f'],
     gauss_blobs_ae=['wbg6v2on', 'lodhhjsy', '4dr82kee', 'tugrv3xs', 'xgt6zjrz', 'yg2dyy2l'],
-    gauss_blobs_mcnet=[''],
+    gauss_blobs_mcnet=['0uubc3bq', 'ruimrjmf', '7erj3ehm', '5vw9o21p', 'h1x11wtr', '7cprunfj'],
 
     bird2d=['zrg1n81t', '2u17r582', '48tfp8ic', '5c3pyiry', 'hwsqxr2q', '68fu6zq5'],
     bird2d_3dim=['wkxw31o2', 'ibom3py6', '08ewagh1', '2m5edxjl', 'f08any5m', 'a584kajr'],
     bird2d_ae=['0n5qkwzw', 'l3an4sxg', 'pzl7qxh2', 'dl9uty2x', 'vfxa66hm', '9balclqg'],
-    bird2d_mcnet=[''],
+    bird2d_mcnet=['krq3ykjw', '8aqcqw13', 'tdqnvca8', 's9xsnq5y', 'vm7arkdt', 'fpasw3ig'],
 
     bird3d=['vfi9uv12', 'uchpxrsi', 'osvsspoa', 'vk9imiwu', 'wdp0krcb', '360d94lh'],
     bird3d_ae=['x0j5bj52', 'sj7ir8kc', 'wiq4n405', 'siadb8h1', 'q2b3crp2', 'bd3kowxg'],
-    bird3d_mcnet=[''],
+    bird3d_mcnet=['f4ff068v', '362ogfdp', 'cqgv7m2i', 'zc2c3mzw', 'w3g78iw5', 't31omm8g'],
 )

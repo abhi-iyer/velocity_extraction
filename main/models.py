@@ -316,7 +316,7 @@ baselines
 '''
 
 class Autoencoder(nn.Module):
-    def __init__(self, seed, input_shape, layer_sizes):
+    def __init__(self, seed, input_shape, layer_sizes, v_dim):
         super().__init__()
 
         block = lambda in_dim, out_dim : nn.Sequential(
@@ -512,7 +512,7 @@ class MCNet_32x12(nn.Module):
         reconstruction_in = torch.stack(reconstruction_in, dim=1)
         reconstruction_out = self.combination_layers(reconstruction_in)
         
-        return reconstruction_out
+        return reconstruction_in[:, :-1, :], reconstruction_out
 
 
 class MCNet_16x16(nn.Module):
@@ -632,7 +632,7 @@ class MCNet_16x16(nn.Module):
         reconstruction_in = torch.stack(reconstruction_in, dim=1)
         reconstruction_out = self.combination_layers(reconstruction_in)
         
-        return reconstruction_out
+        return reconstruction_in[:, :-1, :], reconstruction_out
 
 
 class MCNet_1x100(nn.Module):
@@ -754,4 +754,4 @@ class MCNet_1x100(nn.Module):
         reconstruction_in = torch.stack(reconstruction_in, dim=1)
         reconstruction_out = self.combination_layers(reconstruction_in).view(bs, L, C, 1, 100)
         
-        return reconstruction_out
+        return reconstruction_in[:, :-1, :], reconstruction_out
