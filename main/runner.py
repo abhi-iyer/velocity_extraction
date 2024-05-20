@@ -236,4 +236,5 @@ def save_figures(wandb_run, config, model, train_dataset, test_dataset, pred_spa
 
 
 if __name__ == '__main__':
-    runner('freq', seed=100)
+    runner('bird3d', seed=103)
+    runner('bird3d', seed=104)

@@ -861,7 +861,8 @@ def firing_rates(
 
 
     # plt.title('Spatial tuning of \nsynthetic grid cells given\n model generated velocities \nalong true trajectory')
-    
+
+    plt.tight_layout()    
 
     return fig
 
