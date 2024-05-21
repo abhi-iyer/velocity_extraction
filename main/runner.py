@@ -23,7 +23,7 @@ def runner(config_name, seed, generate_figures=True):
     wandb_run = wandb.init(
         name=config_name,
         project='gcpc_velocity',
-        entity='', # redacted for anonymity
+        entity='iyer',
         config=config, reinit=True, mode='online'
     )
 
