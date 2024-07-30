@@ -526,6 +526,37 @@ def ae_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
     return {k: v for k, v in loss_dict.items() if v is not None}
 
 
+
+def vae_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
+    bs = images.shape[0]
+
+    pred_images, mu, logvar = model(images.flatten(start_dim=0, end_dim=1))
+
+    pred_images = pred_images.unflatten(dim=0, sizes=(bs, -1))
+    mu = mu.unflatten(dim=0, sizes=(bs, -1))
+    logvar = logvar.unflatten(dim=0, sizes=(bs, -1))
+
+    image_loss = mse_loss_fn(
+        input_data=pred_images,
+        target_data=images,
+        weight=loss_fn_args['loss_weight'],
+    )
+
+
+    kl_loss = loss_fn_args['loss_weight'] * loss_fn_args['beta'] * (-0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=(-2, -1)).mean())
+
+    
+    loss_dict = {
+        'image_loss' : image_loss,
+        'kl_loss' : kl_loss,
+    }
+
+    # filter out loss terms that are not None
+    return {k: v for k, v in loss_dict.items() if v is not None}
+
+
+
+
 def mcnet_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
     L = images.shape[1]
 
@@ -546,6 +577,8 @@ def mcnet_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
 
     # filter out loss terms that are not None
     return {k: v for k, v in loss_dict.items() if v is not None}
+
+
 
 
 

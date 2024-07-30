@@ -361,6 +361,67 @@ class Autoencoder(nn.Module):
 
     def forward(self, images):
         return self.decoder_forward(self.encoder_forward(images))
+    
+
+class VariationalAutoencoder(nn.Module):
+    def __init__(self, seed, input_shape, layer_sizes, v_dim):
+        super().__init__()
+
+        block = lambda in_dim, out_dim : nn.Sequential(
+            nn.Linear(in_dim, out_dim),
+            nn.BatchNorm1d(out_dim),
+            nn.ReLU(),
+        )
+
+        self.encoder = nn.Sequential(
+            nn.Flatten(start_dim=1),
+        )
+
+        for i in range(len(layer_sizes) - 1):
+            if (i + 1) == (len(layer_sizes) - 1):
+                self.mu = nn.Linear(layer_sizes[i], layer_sizes[i + 1])
+                self.logvar = nn.Linear(layer_sizes[i], layer_sizes[i + 1])
+            else:
+                self.encoder.append(block(layer_sizes[i], layer_sizes[i + 1]))
+
+        
+        layer_sizes = layer_sizes[::-1]
+
+        self.decoder = nn.Sequential()
+
+        for i in range(len(layer_sizes) - 1):
+            if (i + 1) == (len(layer_sizes) - 1):
+                self.decoder.append(nn.Sequential(
+                    nn.Linear(layer_sizes[i], layer_sizes[i + 1]),
+                    nn.Unflatten(dim=1, unflattened_size=input_shape),
+                ))
+            else:
+                self.decoder.append(block(layer_sizes[i], layer_sizes[i + 1]))
+
+
+        torch.manual_seed(seed)
+        self.apply(he_init)
+
+    def encoder_forward(self, images):
+        x = self.encoder(images)
+
+        mu = self.mu(x)
+        logvar = self.logvar(x)
+        std = torch.exp(0.5 * logvar)
+
+        z = mu + torch.randn_like(std) * std 
+
+        return z, mu, logvar
+
+    def decoder_forward(self, latent):
+        return self.decoder(latent)
+
+    def forward(self, images):
+        z, mu, logvar = self.encoder_forward(images)
+
+        pred_images = self.decoder_forward(z)
+
+        return pred_images, mu, logvar
 
 
 class ConvLSTMCell(nn.Module):

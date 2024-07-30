@@ -198,6 +198,24 @@ blob_ae['loss_fn_args'].update(
 )
 
 
+blob_vae = deepcopy(shrinkingblob)
+blob_vae.update(
+    model_class=VariationalAutoencoder,
+    lr=1e-3,
+    num_epochs=800,
+    loss_fn=vae_loss_fn,
+)
+blob_vae['model_args'].update(
+    input_shape=(16, 16),
+    layer_sizes=(256, 128, 64, 32, 16, 8, 4, 2),
+    v_dim=2,
+)
+blob_vae['loss_fn_args'].update(
+    loss_weight=1e3,
+    beta=2,
+)
+
+
 blob_mcnet = deepcopy(shrinkingblob)
 blob_mcnet.update(
     model_class=MCNet_16x16,
@@ -266,6 +284,24 @@ gauss_blobs_ae['model_args'].update(
 )
 gauss_blobs_ae['loss_fn_args'].update(
     image_loss_weight=1e3,
+)
+
+
+gauss_blobs_vae = deepcopy(contshiftingmeans)
+gauss_blobs_vae.update(
+    model_class=VariationalAutoencoder,
+    lr=1e-3,
+    num_epochs=800,
+    loss_fn=vae_loss_fn,
+)
+gauss_blobs_vae['model_args'].update(
+    input_shape=(16, 16),
+    layer_sizes=(256, 128, 64, 32, 16, 8, 4, 2),
+    v_dim=2,
+)
+gauss_blobs_vae['loss_fn_args'].update(
+    loss_weight=1e3,
+    beta=2,
 )
 
 
@@ -376,6 +412,24 @@ bird2d_ae['loss_fn_args'].update(
 )
 
 
+bird2d_vae = deepcopy(stretchybird2d)
+bird2d_vae.update(
+    model_class=VariationalAutoencoder,
+    lr=1e-3,
+    num_epochs=800,
+    loss_fn=vae_loss_fn,
+)
+bird2d_vae['model_args'].update(
+    input_shape=(32, 12),
+    layer_sizes=(384, 192, 96, 48, 24, 12, 6, 2),
+    v_dim=2,
+)
+bird2d_vae['loss_fn_args'].update(
+    loss_weight=1e3,
+    beta=2,
+)
+
+
 bird2d_mcnet = deepcopy(stretchybird2d)
 bird2d_mcnet.update(
     model_class=MCNet_32x12,
@@ -463,6 +517,24 @@ bird3d_ae['model_args'].update(
 )
 bird3d_ae['loss_fn_args'].update(
     image_loss_weight=1e3,
+)
+
+
+bird3d_vae = deepcopy(stretchybird3d)
+bird3d_vae.update(
+    model_class=VariationalAutoencoder,
+    lr=1e-3,
+    num_epochs=800,
+    loss_fn=vae_loss_fn,
+)
+bird3d_vae['model_args'].update(
+    input_shape=(32, 12),
+    layer_sizes=(384, 192, 96, 48, 24, 12, 6, 3),
+    v_dim=3,
+)
+bird3d_vae['loss_fn_args'].update(
+    loss_weight=1e3,
+    beta=2,
 )
 
 
@@ -555,6 +627,24 @@ freq_ae['loss_fn_args'].update(
 )
 
 
+freq_vae = deepcopy(frequencyshift1d)
+freq_vae.update(
+    model_class=VariationalAutoencoder,
+    lr=1e-3,
+    num_epochs=800,
+    loss_fn=vae_loss_fn,
+)
+freq_vae['model_args'].update(
+    input_shape=(1, 100),
+    layer_sizes=(100, 80, 60, 40, 20, 10, 5, 1),
+    v_dim=1,
+)
+freq_vae['loss_fn_args'].update(
+    loss_weight=1e3,
+    beta=2,
+)
+
+
 freq_mcnet = deepcopy(frequencyshift1d)
 freq_mcnet.update(
     model_class=MCNet_1x100,
@@ -577,11 +667,13 @@ CONFIGS = dict(
     blob=blob,
     blob_3dim=blob_3dim,
     blob_ae=blob_ae,
+    blob_vae=blob_vae,
     blob_mcnet=blob_mcnet,
 
     gauss_blobs=gauss_blobs,
     gauss_blobs_3dim=gauss_blobs_3dim,
     gauss_blobs_ae=gauss_blobs_ae,
+    gauss_blobs_vae=gauss_blobs_vae,
     gauss_blobs_mcnet=gauss_blobs_mcnet,
     gauss_blobs_ablation_image_loss=gauss_blobs_ablation_image_loss,
     gauss_blobs_ablation_image_and_loop_loss=gauss_blobs_ablation_image_and_loop_loss,
@@ -589,18 +681,21 @@ CONFIGS = dict(
     bird2d=bird2d,
     bird2d_3dim=bird2d_3dim,
     bird2d_ae=bird2d_ae,
+    bird2d_vae=bird2d_vae,
     bird2d_mcnet=bird2d_mcnet,
     bird2d_ablation_image_loss=bird2d_ablation_image_loss,
     bird2d_ablation_image_and_loop_loss=bird2d_ablation_image_and_loop_loss,
 
     bird3d=bird3d,
     bird3d_ae=bird3d_ae,
+    bird3d_vae=bird3d_vae,
     bird3d_mcnet=bird3d_mcnet,
 
     freq=freq,
     freq_2dim=freq_2dim,
     freq_3dim=freq_3dim,
     freq_ae=freq_ae,
+    freq_vae=freq_vae,
     freq_mcnet=freq_mcnet,
 )
 
@@ -613,16 +708,19 @@ EXP_CODES = dict(
     freq_2dim=['70yf9dxl', 'yajgq80l', '5m5okdv0', '261ihs6j', 'kigt2pvn', 'vlvcjjlh'],
     freq_3dim=['w0z5rowu', 'nrak4phj', 'z296devh', 'u0tp2unu', 't7cmkkru', 'cecuup8u'],
     freq_ae=['jrkp1opx', 'b187kcxw', '9l5tzvgx', 'r6znjmpv', '2wpo2rgr', 'j5dt5bdm'],
+    freq_vae=['7m7ryqka', 'mq86vuef', 'glvyppoi', 'n4qbtldj', '0pgu821z', 'ujd6dnio'],
     freq_mcnet=['1lwd02te', 'wk3mafka', '10soeyja', 'v4nckzde', 'fsyqscga', '8hzhx9xg'],
 
     blob=['lrf29umi', 'iy4ekrmv', '3nhdswr0', 'b434tgs6', 'ev40t32f', 'bzjch81e'],
     blob_3dim=['785o0lfi', '8d3yb4ty', 'x8kauyhn', 'nczimes7', '5p3wuqja', 'y1rf1osf'],
     blob_ae=['qf6jy4p4', 'phvw3mma', '9i6957v9', 'syrwzfwy', 'i4pu66v4', 'xdlloemp'],
+    blob_vae=['hg3vnwhd', 'b9klrayx', 'q4ytpwft', 'ruwplh38', '2jtjar7n', 'gqlvj020'],
     blob_mcnet=['rjtkvfjz', 'wxawvpn9', 'iohysj37', '05xbakxc', 'ktmpsew7', '3h3hihcw'],
 
     gauss_blobs=['vg2es21d', 'slj7afhk', '2jc1ffd7', 'q81c8b20', 'pd60xufu', 'aq61yki5'],
     gauss_blobs_3dim=['qxjymcmk', 'tkhky706', 'gvb7vgly', 'eq4vnb86', 'qxpvetjm', 'npfcju5f'],
     gauss_blobs_ae=['wbg6v2on', 'lodhhjsy', '4dr82kee', 'tugrv3xs', 'xgt6zjrz', 'yg2dyy2l'],
+    gauss_blobs_vae=['e0jk08yz', '6jw5ri3z', 'mve56wx7', 'o7surmvw', 'd4p9fini', 'asrlqri9'],
     gauss_blobs_mcnet=['0uubc3bq', 'ruimrjmf', '7erj3ehm', '5vw9o21p', 'h1x11wtr', '7cprunfj'],
     gauss_blobs_ablation_image_loss=['tjelkqj8'],
     gauss_blobs_ablation_image_and_loop_loss=['ff24qurc'],
@@ -630,11 +728,13 @@ EXP_CODES = dict(
     bird2d=['zrg1n81t', '2u17r582', '48tfp8ic', '5c3pyiry', 'hwsqxr2q', '68fu6zq5'],
     bird2d_3dim=['wkxw31o2', 'ibom3py6', '08ewagh1', '2m5edxjl', 'f08any5m', 'a584kajr'],
     bird2d_ae=['0n5qkwzw', 'l3an4sxg', 'pzl7qxh2', 'dl9uty2x', 'vfxa66hm', '9balclqg'],
+    bird2d_vae=['tqmjgtu5', '7k14y1r6', '13o9ms9c', '9zpjrnui', '688abido', '4xqeauba'],
     bird2d_mcnet=['krq3ykjw', '8aqcqw13', 'tdqnvca8', 's9xsnq5y', 'vm7arkdt', 'fpasw3ig'],
     bird2d_ablation_image_loss=['ivxompyv'],
     bird2d_ablation_image_and_loop_loss=['zg1eplts'],
 
     bird3d=['vfi9uv12', 'uchpxrsi', 'osvsspoa', 'elkceaxa', 'v01bl672', '360d94lh'],
     bird3d_ae=['x0j5bj52', 'sj7ir8kc', 'wiq4n405', 'siadb8h1', 'q2b3crp2', 'bd3kowxg'],
+    bird3d_vae=['jxwrs2ve', '5793giv9', 'sdgwqn6t', 'ev8od987', 'nc7jjxn5', 'skrx5amq'],
     bird3d_mcnet=['f4ff068v', '362ogfdp', 'cqgv7m2i', 'zc2c3mzw', 'w3g78iw5', 't31omm8g'],
 )
