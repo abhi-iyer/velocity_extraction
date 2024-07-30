@@ -746,7 +746,8 @@ def vae_reduction(tensor, config, model_code):
 
 
     with torch.no_grad():
-        embedding, _, _ = model.encoder_forward(tensor).cpu().numpy()
+        embedding, _, _ = model.encoder_forward(tensor)
+        embedding = embedding.cpu().numpy()
 
     velocities = embedding[1:, :] - embedding[:-1, :]
 
