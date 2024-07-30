@@ -737,6 +737,25 @@ def ae_reduction(tensor, config, model_code):
     return velocities
 
 
+def vae_reduction(tensor, config, model_code):
+    tensor = tensor.cuda()
+
+    model = config['model_class'](seed=100, **config['model_args']).cuda()
+    model.load_state_dict(torch.load('./models/model_{}.pt'.format(model_code)))
+    _ = model.eval()
+
+
+    with torch.no_grad():
+        embedding, _, _ = model.encoder_forward(tensor).cpu().numpy()
+
+    velocities = embedding[1:, :] - embedding[:-1, :]
+
+    if config['task_dim'] == 1 and velocities.shape[1] == 1:
+        velocities = np.hstack((velocities, np.zeros((velocities.shape[0], 1))))
+
+    return velocities
+
+
 def mcnet_reduction(tensor, config, model_code):
     tensor = tensor.cuda()
 
