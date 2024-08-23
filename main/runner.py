@@ -238,3 +238,5 @@ def save_figures(wandb_run, config, model, train_dataset, test_dataset, pred_spa
 if __name__ == '__main__':
     # Usage: runner({config name}, seed={some number})
     # Example: runner('blob', seed=100)
+
+    runner('gauss_blobs_imagepairs', seed=100)

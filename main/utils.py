@@ -127,6 +127,13 @@ def cosine_dissim(x, y):
     return (1 - nn.CosineSimilarity(dim=-1)(x, y)).clamp_(0.0, 1.0)
 
 
+def get_i1_i2(loop_path):
+    if loop_path.ndim == 4:
+        loop_path = loop_path.unsqueeze(0)
+
+    return loop_path[:, :-1, :, :, :], loop_path[:, 1:, :, :, :]
+
+
 def get_i1_i2_i3(loop_path):
     if loop_path.ndim == 4:
         loop_path = loop_path.unsqueeze(0)
@@ -507,6 +514,203 @@ def general_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
     return {k: v for k, v in loss_dict.items() if v is not None}
 
 
+def general_loss_fn_someloops(model, images, loss_fn_args, model_args, epoch_pct):
+    '''
+    preliminaries
+    '''
+    image_loss = None
+    loop_loss = None
+    shortcut_loss = None
+    isometry_loss = None
+    spatial_locality_loss = None
+
+
+    path_len = images.shape[1]
+
+    gt_imgs = list(get_i1_i2_i3(images))
+    gt_imgs[0] = gt_imgs[0].squeeze()
+    gt_imgs[1] = gt_imgs[1].squeeze()
+    gt_imgs[2] = gt_imgs[2].squeeze()
+
+    i1 = gt_imgs[0][:, :-1, :]
+    i2 = gt_imgs[1][:, :-1, :]
+    i4 = gt_imgs[1][:, 1:, :]
+    
+    # NOTE: pred_vs[:, :-1, :] describes inferred velocities from i2 -> i3 and pred_vs[:, 1:, :] describes inferred velocities from i3 -> i4
+    pred_vs_i1_i2, pred_i3 = model_full(model, first_img=gt_imgs[0], second_img=gt_imgs[1], apply_img=gt_imgs[1])
+
+    if (path_len % 2 == 0):
+        pred_i3 = pred_i3[:, :-1, :, :, :]
+
+
+
+    '''
+    image prediction loss
+    '''
+    image_loss = focal_loss_fn(pred_i3, gt_imgs[2], num_output_labels=model_args['num_output_labels'], weight=loss_fn_args['image_loss_weight'])
+
+
+    '''
+    loop closure loss
+    '''
+    if loss_fn_args['loop_loss_weight']:
+        bs = images.shape[0]
+        loop_check = torch.prod(torch.isclose(images[:, 0], images[:, -1]).view(bs, -1), dim=1).bool()
+
+        pred_vs_i1_i2_sum = pred_vs_i1_i2.sum(dim=1)[loop_check, :]
+
+        if loop_check.sum():
+            loop_loss = mse_loss_fn(pred_vs_i1_i2_sum, torch.zeros_like(pred_vs_i1_i2_sum).cuda(), weight=loss_fn_args['loop_loss_weight'])
+
+
+    '''
+    shortcut estimation loss
+    '''
+    if loss_fn_args['shortcut_loss_weight']:
+        shortcut_loss = (         
+            focal_loss_fn(
+                model_decoder(model=model, pred_vs=pred_vs_i1_i2[:, :-1, :] + pred_vs_i1_i2[:, 1:, :], apply_img=i2), 
+                i4, 
+                num_output_labels=model_args['num_output_labels'], 
+                weight=loss_fn_args['shortcut_loss_weight'],
+            ) + \
+            focal_loss_fn(
+                model_decoder(model=model, pred_vs=-pred_vs_i1_i2[:, :-1, :] - pred_vs_i1_i2[:, 1:, :], apply_img=i4), 
+                i2, 
+                num_output_labels=model_args['num_output_labels'], 
+                weight=loss_fn_args['shortcut_loss_weight'],
+            )
+        )
+
+
+    '''
+    isometry loss
+    '''
+    if loss_fn_args['isometry_loss_weight']:
+       isometry_loss = isometry_loss_fn(pred_vs_i1_i2, loss_fn_args, gt_imgs[0], gt_imgs[1], weight=loss_fn_args['isometry_loss_weight'])
+
+
+
+    '''
+    spatial locality loss
+    '''
+    if loss_fn_args['spatial_locality_loss']:
+        if epoch_pct < 0.5:
+            spatial_locality_loss = spatial_locality_loss_fn(
+                pred_vs=pred_vs_i1_i2,
+                weight=loss_fn_args['spatial_locality_loss']
+            )
+
+
+
+    loss_dict = {
+        'image_loss' : image_loss,
+        'loop_loss' : loop_loss,
+        'shortcut_loss' : shortcut_loss,
+        'isometry_loss' : isometry_loss,
+        'spatial_locality_loss' : spatial_locality_loss,
+    }
+
+    # filter out loss terms that are not None
+    return {k: v for k, v in loss_dict.items() if v is not None}
+
+
+def general_loss_fn_imagepairs(model, images, loss_fn_args, model_args, epoch_pct):
+    '''
+    preliminaries
+    '''
+    image_loss = None
+    loop_loss = None
+    shortcut_loss = None
+    isometry_loss = None
+    spatial_locality_loss = None
+
+
+    path_len = images.shape[1]
+
+    gt_imgs = list(get_i1_i2(images))
+    gt_imgs[0] = gt_imgs[0].squeeze()
+    gt_imgs[1] = gt_imgs[1].squeeze()
+    
+    i1 = gt_imgs[0][:, :-1, :]
+    i3 = gt_imgs[1][:, 1:, :]
+
+    
+    # NOTE: pred_vs[:, :-1, :] describes inferred velocities from i2 -> i3 and pred_vs[:, 1:, :] describes inferred velocities from i3 -> i4
+    pred_vs_i1_i2, pred_i2 = model_full(model, first_img=gt_imgs[0], second_img=gt_imgs[1], apply_img=gt_imgs[0])
+
+    if (path_len % 2 == 0):
+        pred_i2 = pred_i2[:, :-1, :, :, :]
+
+
+
+    '''
+    image prediction loss
+    '''
+    image_loss = focal_loss_fn(pred_i2, gt_imgs[1], num_output_labels=model_args['num_output_labels'], weight=loss_fn_args['image_loss_weight'])
+
+
+    '''
+    loop closure loss
+    '''
+    if loss_fn_args['loop_loss_weight']:
+        pred_vs_i1_i2_sum = pred_vs_i1_i2.sum(dim=1)
+
+        loop_loss = mse_loss_fn(pred_vs_i1_i2_sum, torch.zeros_like(pred_vs_i1_i2_sum).cuda(), weight=loss_fn_args['loop_loss_weight'])
+
+
+    '''
+    shortcut estimation loss
+    '''
+    if loss_fn_args['shortcut_loss_weight']:
+        shortcut_loss = (         
+            focal_loss_fn(
+                model_decoder(model=model, pred_vs=pred_vs_i1_i2[:, :-1, :] + pred_vs_i1_i2[:, 1:, :], apply_img=i1), 
+                i3,
+                num_output_labels=model_args['num_output_labels'], 
+                weight=loss_fn_args['shortcut_loss_weight'],
+            ) + \
+            focal_loss_fn(
+                model_decoder(model=model, pred_vs=-pred_vs_i1_i2[:, :-1, :] - pred_vs_i1_i2[:, 1:, :], apply_img=i3), 
+                i1, 
+                num_output_labels=model_args['num_output_labels'], 
+                weight=loss_fn_args['shortcut_loss_weight'],
+            )
+        )
+
+
+    '''
+    isometry loss
+    '''
+    if loss_fn_args['isometry_loss_weight']:
+       isometry_loss = isometry_loss_fn(pred_vs_i1_i2, loss_fn_args, gt_imgs[0], gt_imgs[1], weight=loss_fn_args['isometry_loss_weight'])
+
+
+
+    '''
+    spatial locality loss
+    '''
+    if loss_fn_args['spatial_locality_loss']:
+        if epoch_pct < 0.5:
+            spatial_locality_loss = spatial_locality_loss_fn(
+                pred_vs=pred_vs_i1_i2,
+                weight=loss_fn_args['spatial_locality_loss']
+            )
+
+
+
+    loss_dict = {
+        'image_loss' : image_loss,
+        'loop_loss' : loop_loss,
+        'shortcut_loss' : shortcut_loss,
+        'isometry_loss' : isometry_loss,
+        'spatial_locality_loss' : spatial_locality_loss,
+    }
+
+    # filter out loss terms that are not None
+    return {k: v for k, v in loss_dict.items() if v is not None}
+
+
 
 def ae_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
     bs = images.shape[0]
@@ -577,6 +781,7 @@ def mcnet_loss_fn(model, images, loss_fn_args, model_args, epoch_pct):
 
     # filter out loss terms that are not None
     return {k: v for k, v in loss_dict.items() if v is not None}
+
 
 
 
@@ -918,10 +1123,3 @@ def firing_rates(
     plt.tight_layout()    
 
     return fig
-
-
-
-
-
-
-

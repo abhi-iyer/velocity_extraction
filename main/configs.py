@@ -356,6 +356,27 @@ gauss_blobs_ablation_image_and_loop_loss['loss_fn_args'].update(
 )
 
 
+gauss_blobs_imagepairs = deepcopy(contshiftingmeans)
+gauss_blobs_imagepairs.update(
+    model_class=Gauss_FC_FC,
+    lr=5e-4,
+    num_epochs=400,
+    loss_fn=general_loss_fn_imagepairs,
+)
+gauss_blobs_imagepairs['model_args'].update(
+    v_dim=2,
+    num_output_labels=200,
+)
+gauss_blobs_imagepairs['dataloader_args'].update(
+    batch_size=96,
+)
+gauss_blobs_imagepairs['loss_fn_args'].update(
+    image_loss_weight=1, loop_loss_weight=1e1, shortcut_loss_weight=1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=1e-2,
+    spatial_locality_loss=0.0,
+)
+
+
 #---------------------------------------
 
 
@@ -478,6 +499,25 @@ bird2d_ablation_image_and_loop_loss['loss_fn_args'].update(
     image_loss_weight=1e1, loop_loss_weight=1e2, shortcut_loss_weight=0, 
     isometry_loss_weight=0, isometry_similarity_threshold=0,
     spatial_locality_loss=0,
+)
+
+
+bird2d_someloops = deepcopy(stretchybird2d)
+bird2d_someloops.update(
+    model_class=Bird_FC_FC,
+    dataset_class=StretchyBird2D_SomeLoops,
+    lr=5e-4,
+    num_epochs=375,
+    loss_fn=general_loss_fn_someloops,
+)
+bird2d_someloops['model_args'].update(
+    v_dim=2,
+    num_output_labels=200,
+)
+bird2d_someloops['loss_fn_args'].update(
+    image_loss_weight=1e1, loop_loss_weight=1e2, shortcut_loss_weight=1e1, 
+    isometry_loss_weight=1e2, isometry_similarity_threshold=6e-3,
+    spatial_locality_loss=0.0,
 )
 
 
@@ -677,6 +717,7 @@ CONFIGS = dict(
     gauss_blobs_mcnet=gauss_blobs_mcnet,
     gauss_blobs_ablation_image_loss=gauss_blobs_ablation_image_loss,
     gauss_blobs_ablation_image_and_loop_loss=gauss_blobs_ablation_image_and_loop_loss,
+    gauss_blobs_imagepairs=gauss_blobs_imagepairs,
 
     bird2d=bird2d,
     bird2d_3dim=bird2d_3dim,
@@ -685,6 +726,7 @@ CONFIGS = dict(
     bird2d_mcnet=bird2d_mcnet,
     bird2d_ablation_image_loss=bird2d_ablation_image_loss,
     bird2d_ablation_image_and_loop_loss=bird2d_ablation_image_and_loop_loss,
+    bird2d_someloops=bird2d_someloops,
 
     bird3d=bird3d,
     bird3d_ae=bird3d_ae,
@@ -724,6 +766,7 @@ EXP_CODES = dict(
     gauss_blobs_mcnet=['0uubc3bq', 'ruimrjmf', '7erj3ehm', '5vw9o21p', 'h1x11wtr', '7cprunfj'],
     gauss_blobs_ablation_image_loss=['tjelkqj8'],
     gauss_blobs_ablation_image_and_loop_loss=['ff24qurc'],
+    gauss_blobs_imagepairs=['9rc5686s'],
 
     bird2d=['zrg1n81t', '2u17r582', '48tfp8ic', '5c3pyiry', 'hwsqxr2q', '68fu6zq5'],
     bird2d_3dim=['wkxw31o2', 'ibom3py6', '08ewagh1', '2m5edxjl', 'f08any5m', 'a584kajr'],
@@ -732,6 +775,7 @@ EXP_CODES = dict(
     bird2d_mcnet=['krq3ykjw', '8aqcqw13', 'tdqnvca8', 's9xsnq5y', 'vm7arkdt', 'fpasw3ig'],
     bird2d_ablation_image_loss=['ivxompyv'],
     bird2d_ablation_image_and_loop_loss=['zg1eplts'],
+    bird2d_someloops=['0k3igz78'],
 
     bird3d=['vfi9uv12', 'uchpxrsi', 'osvsspoa', 'elkceaxa', 'v01bl672', '360d94lh'],
     bird3d_ae=['x0j5bj52', 'sj7ir8kc', 'wiq4n405', 'siadb8h1', 'q2b3crp2', 'bd3kowxg'],

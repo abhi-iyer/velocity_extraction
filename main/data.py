@@ -1124,3 +1124,554 @@ class FrequencyShift1D(Dataset):
     
     def __len__(self):
         return len(self.seeds)
+    
+
+class StretchyBird2D_SomeLoops(Dataset):
+    def __init__(
+            self, 
+            path, train, 
+            random_walk_length=20, 
+            max_std_shift=1.5, 
+            num_training=20e3, num_testing=5e3,
+        ):
+        super().__init__()
+
+        self.path = os.path.join(os.path.abspath(path), 'stretchybird2d_someloops')
+        self.config_path = os.path.join(self.path, 'config.txt')
+        
+        self.train = train
+        self.random_walk_length = random_walk_length
+        self.max_std_shift = max_std_shift
+        self.num_training = int(num_training)
+        self.num_testing = int(num_testing)
+        self.total_path_length = self.random_walk_length * 4 + 1
+
+        self.create_dirs()
+
+        if os.path.isfile(self.config_path):
+            with open(self.config_path, 'r') as f:
+                if f.read()[:-1] != repr(self):
+                    shutil.rmtree(self.path)
+
+                    self.create_dirs()
+                    self.create_config()
+        else:
+            self.create_config()
+
+
+        if self.train:
+            self.seeds = torch.arange(0, int(num_training))
+        else:
+            self.seeds = torch.arange(int(num_training), int(num_training) + int(num_testing))
+
+        '''
+        bird characteristics
+        '''
+        self.N = 32
+        self.body = torch.zeros((self.total_path_length, self.N, self.N)).cuda()
+        self.X, self.Y = torch.meshgrid(torch.arange(self.N), torch.arange(self.N), indexing='xy')
+        self.X = self.X.cuda()
+        self.Y = self.Y.cuda()
+        
+        self.neck_x_range = torch.arange(2, 12)
+        self.neck_y = 18
+        self.body[:, 12, self.neck_y] = 1
+
+        self.leg_x_range = torch.arange(21, 31)
+        self.leg1_y = 12
+        self.leg2_y = 17
+        self.body[:, [19, 20], self.leg1_y] = 1
+        self.body[:, [19, 20], self.leg2_y] = 1
+        self.body = self.create_body(tilt_degree=150)
+
+        self.max_std = 10 / 1.3
+        self.x_grid = torch.arange(10).cuda()
+
+    
+    def create_body(self, tilt_degree):
+        body = deepcopy(self.body)
+
+        center_x = self.N // 2
+        center_y = self.N // 2
+        radius_x = self.N // 6
+        radius_y = self.N // 10
+
+        x_tilted = (self.X - center_x) * np.cos(np.deg2rad(tilt_degree)) + (self.Y - center_y) * np.sin(np.deg2rad(tilt_degree))
+        y_tilted = -(self.X - center_x) * np.sin(np.deg2rad(tilt_degree)) + (self.Y - center_y) * np.cos(np.deg2rad(tilt_degree))
+
+        within_body = (x_tilted / radius_x) ** 2 + (y_tilted / radius_y) ** 2 <= 1
+
+        body[:, within_body] = 1
+
+        return body
+
+
+    def create_dirs(self):
+        os.makedirs(self.path, exist_ok=True)
+        os.makedirs(os.path.join(self.path, 'train'), exist_ok=True)
+        os.makedirs(os.path.join(self.path, 'test'), exist_ok=True)
+
+    
+    def create_config(self):
+        with open(self.config_path, 'w') as f:
+            print(self, file=f)
+
+
+    def __repr__(self):
+        config_str = ''
+        config_str += '{}: {}\n'.format('random walk length', self.random_walk_length)
+        config_str += '{}: {}\n'.format('max shift delta', self.max_std_shift)
+        config_str += '{}: {}\n'.format('num training', self.num_training)
+        config_str += '{}: {}\n'.format('num testing', self.num_testing)
+
+        return config_str
+
+
+    def gauss(self, x, mean, std):
+        return torch.exp(-( (x - mean)**2/(2 * std**2) ))
+
+    
+    def bigauss(self, x, y, mean, std):
+        return torch.exp(-( (x - mean[0])**2/(2 * std[0]**2) + (y - mean[1])**2/(2 * std[1]**2) ))
+    
+
+    def __getitem__(self, index):
+        assert 0 <= index <= len(self.seeds)
+
+        split_str = 'train' if self.train else 'test'
+
+        images_path = os.path.join(self.path, split_str, 'images_{}.pt'.format(str(index)))
+        vs_path = os.path.join(self.path, split_str, 'vs_{}.pt'.format(str(index)))
+
+        # check if item is already saved
+        if os.path.exists(images_path) and os.path.exists(vs_path):
+            return torch.load(images_path), torch.load(vs_path)
+
+        torch.manual_seed(self.seeds[index])
+        
+        '''
+        generate velocities
+        '''
+        stds = torch.DoubleTensor(2).cuda().uniform_(0, self.max_std).repeat(self.total_path_length, 1)
+        vs = []
+        cumsum = stds[0,:].cpu()
+
+        if index <= len(self.seeds) // 2:
+            while len(vs) < self.random_walk_length:
+                v = torch.DoubleTensor(2).uniform_(-self.max_std_shift, self.max_std_shift)
+
+                if inclusive_range(cumsum + 2*v, 0, self.max_std):
+                    vs.append(v)
+                    cumsum += 2 * v
+            forward = torch.stack(vs).cuda()
+            backward = -forward
+            final_forward_point = cumsum.cuda()
+
+            while not inclusive_range(final_forward_point + 2 * backward.cumsum(dim=0), 0, self.max_std):
+                backward = backward[torch.randperm(self.random_walk_length), :]
+            
+            gt_vs = torch.vstack((
+                torch.zeros(2).cuda(),
+                forward.repeat_interleave(repeats=2, dim=0),
+                backward.repeat_interleave(repeats=2, dim=0)
+            ))
+
+            torch._assert(torch.isclose(gt_vs.sum(dim=0), torch.zeros(2).cuda().double(), atol=1e-8).all(), "vs must sum to zero: {}".format(gt_vs.sum(dim=0)))
+        else:
+            while len(vs) < (2 * self.random_walk_length):
+                v = torch.DoubleTensor(2).uniform_(-self.max_std_shift, self.max_std_shift)
+
+                if inclusive_range(cumsum + 2*v, 0, self.max_std):
+                    vs.append(v)
+                    cumsum += 2 * v
+            forward = torch.stack(vs).cuda()
+
+            gt_vs = torch.vstack((
+                torch.zeros(2).cuda(),
+                forward.repeat_interleave(repeats=2, dim=0),
+            ))
+                
+
+        shifted_stds = (gt_vs.cumsum(dim=0) + stds).float()
+
+        images = deepcopy(self.body)
+        
+
+        '''
+        assemble neck and legs
+        '''
+        images[:, self.neck_x_range, self.neck_y] = self.gauss(
+            self.x_grid.repeat(self.total_path_length, 1),
+            self.x_grid.max().repeat(self.total_path_length, len(self.x_grid)),
+            shifted_stds[:, 0].repeat(len(self.x_grid), 1).T,
+        )
+        images[:, self.leg_x_range, self.leg1_y] = self.gauss(
+            self.x_grid.repeat(self.total_path_length, 1),
+            self.x_grid.min().repeat(self.total_path_length, len(self.x_grid)),
+            shifted_stds[:, 1].repeat(len(self.x_grid), 1).T,
+        )
+        images[:, self.leg_x_range, self.leg2_y] = self.gauss(
+            self.x_grid.repeat(self.total_path_length, 1),             
+            self.x_grid.min().repeat(self.total_path_length, len(self.x_grid)),
+            shifted_stds[:, 1].repeat(len(self.x_grid), 1).T,
+        )
+        
+
+        # images gets cropped from 32 x 32 --> 32 x 12
+        images = images[:, :, 11:-9]
+        images = images.unsqueeze(1).cpu()
+        images.clip_(0, 1)
+
+        if index <= len(self.seeds) // 2:
+            torch._assert(torch.isclose(images[0], images[-1], atol=1e-8).all(), "first and last image must be the same in a loop")
+        
+        gt_vs = gt_vs[1:, :].cpu()
+
+        torch.save(images.float(), images_path)
+        torch.save(gt_vs.float(), vs_path)
+
+        return images, gt_vs
+
+
+    def generate_sample_trajectory(self, length):
+        fix_randomness(seed=0)
+
+        total_path_length = length + 1
+
+        stds = torch.DoubleTensor(2).cuda().uniform_(0, self.max_std).repeat(total_path_length, 1)
+
+        vs = []
+        cumsum = stds[0,:].cpu()
+        while len(vs) < length:
+            v = torch.DoubleTensor(2).uniform_(-self.max_std_shift, self.max_std_shift)
+
+            if inclusive_range(cumsum + v, 0, self.max_std):
+                vs.append(v)
+                cumsum += v
+        
+        gt_vs = torch.vstack((
+            torch.zeros(2).cuda(),
+            torch.stack(vs).cuda()
+        ))
+
+        shifted_stds = (gt_vs.cumsum(dim=0) + stds).float()
+
+        images = deepcopy(self.body)
+        images = images[0, :].repeat(total_path_length, 1, 1)
+
+
+        images[:, self.neck_x_range, self.neck_y] = self.gauss(
+            self.x_grid.repeat(total_path_length, 1),
+            self.x_grid.max().repeat(total_path_length, len(self.x_grid)),
+            shifted_stds[:, 0].repeat(len(self.x_grid), 1).T,
+        )
+        images[:, self.leg_x_range, self.leg1_y] = self.gauss(
+            self.x_grid.repeat(total_path_length, 1),
+            self.x_grid.min().repeat(total_path_length, len(self.x_grid)),
+            shifted_stds[:, 1].repeat(len(self.x_grid), 1).T,
+        )
+        images[:, self.leg_x_range, self.leg2_y] = self.gauss(
+            self.x_grid.repeat(total_path_length, 1),             
+            self.x_grid.min().repeat(total_path_length, len(self.x_grid)),
+            shifted_stds[:, 1].repeat(len(self.x_grid), 1).T,
+        )
+        
+
+        # images gets cropped from 32 x 32 --> 32 x 12
+        images = images[:, :, 11:-9]
+        images = images.unsqueeze(1).cpu()
+        images.clip_(0, 1)
+
+        gt_vs = gt_vs[1:, :].cpu()
+
+        return images.float(), gt_vs.float()
+    
+
+    def cmap(self, X):
+        # X is a N x 2 matrix
+
+        colormap = mp.cm.ScalarMappable(mp.colors.Normalize(vmin=0.0, vmax=1.0), cmap='hsv')
+
+        r = torch.sqrt(X[:, 0]**2 + X[:, 1]**2)
+        r = convert_range(r, (0, (2 * self.max_std_shift**2)**0.5), (0, 1))
+        theta = torch.atan2(X[:, 1], X[:, 0])
+        theta = convert_range(theta, (-torch.pi, torch.pi), (0, 1))
+
+        colors = r.unsqueeze(1).numpy() * colormap.to_rgba(theta.numpy())
+        colors = colors.clip(0, 1)
+
+        colors[:, -1] = np.ones(colors.shape[0])
+
+        return colors
+
+    
+    def __len__(self):
+        return len(self.seeds)
+
+
+class StretchyBird2D_ImagePairs(Dataset):
+    def __init__(
+            self, 
+            path, train, 
+            random_walk_length=20, 
+            max_std_shift=1.5, 
+            num_training=20e3, num_testing=5e3,
+        ):
+        super().__init__()
+
+        self.path = os.path.join(os.path.abspath(path), 'stretchybird2d_imagepairs')
+        self.config_path = os.path.join(self.path, 'config.txt')
+        
+        self.train = train
+        self.random_walk_length = random_walk_length
+        self.max_std_shift = max_std_shift
+        self.num_training = int(num_training)
+        self.num_testing = int(num_testing)
+        self.total_path_length = self.random_walk_length * 4 + 1
+
+        self.create_dirs()
+
+        if os.path.isfile(self.config_path):
+            with open(self.config_path, 'r') as f:
+                if f.read()[:-1] != repr(self):
+                    shutil.rmtree(self.path)
+
+                    self.create_dirs()
+                    self.create_config()
+        else:
+            self.create_config()
+
+
+        if self.train:
+            self.seeds = torch.arange(0, int(num_training))
+        else:
+            self.seeds = torch.arange(int(num_training), int(num_training) + int(num_testing))
+
+        '''
+        bird characteristics
+        '''
+        self.N = 32
+        self.body = torch.zeros((self.total_path_length, self.N, self.N)).cuda()
+        self.X, self.Y = torch.meshgrid(torch.arange(self.N), torch.arange(self.N), indexing='xy')
+        self.X = self.X.cuda()
+        self.Y = self.Y.cuda()
+        
+        self.neck_x_range = torch.arange(2, 12)
+        self.neck_y = 18
+        self.body[:, 12, self.neck_y] = 1
+
+        self.leg_x_range = torch.arange(21, 31)
+        self.leg1_y = 12
+        self.leg2_y = 17
+        self.body[:, [19, 20], self.leg1_y] = 1
+        self.body[:, [19, 20], self.leg2_y] = 1
+        self.body = self.create_body(tilt_degree=150)
+
+        self.max_std = 10 / 1.3
+        self.x_grid = torch.arange(10).cuda()
+
+    
+    def create_body(self, tilt_degree):
+        body = deepcopy(self.body)
+
+        center_x = self.N // 2
+        center_y = self.N // 2
+        radius_x = self.N // 6
+        radius_y = self.N // 10
+
+        x_tilted = (self.X - center_x) * np.cos(np.deg2rad(tilt_degree)) + (self.Y - center_y) * np.sin(np.deg2rad(tilt_degree))
+        y_tilted = -(self.X - center_x) * np.sin(np.deg2rad(tilt_degree)) + (self.Y - center_y) * np.cos(np.deg2rad(tilt_degree))
+
+        within_body = (x_tilted / radius_x) ** 2 + (y_tilted / radius_y) ** 2 <= 1
+
+        body[:, within_body] = 1
+
+        return body
+
+
+    def create_dirs(self):
+        os.makedirs(self.path, exist_ok=True)
+        os.makedirs(os.path.join(self.path, 'train'), exist_ok=True)
+        os.makedirs(os.path.join(self.path, 'test'), exist_ok=True)
+
+    
+    def create_config(self):
+        with open(self.config_path, 'w') as f:
+            print(self, file=f)
+
+
+    def __repr__(self):
+        config_str = ''
+        config_str += '{}: {}\n'.format('random walk length', self.random_walk_length)
+        config_str += '{}: {}\n'.format('max shift delta', self.max_std_shift)
+        config_str += '{}: {}\n'.format('num training', self.num_training)
+        config_str += '{}: {}\n'.format('num testing', self.num_testing)
+
+        return config_str
+
+
+    def gauss(self, x, mean, std):
+        return torch.exp(-( (x - mean)**2/(2 * std**2) ))
+
+    
+    def bigauss(self, x, y, mean, std):
+        return torch.exp(-( (x - mean[0])**2/(2 * std[0]**2) + (y - mean[1])**2/(2 * std[1]**2) ))
+    
+
+    def __getitem__(self, index):
+        assert 0 <= index <= len(self.seeds)
+
+        split_str = 'train' if self.train else 'test'
+
+        images_path = os.path.join(self.path, split_str, 'images_{}.pt'.format(str(index)))
+        vs_path = os.path.join(self.path, split_str, 'vs_{}.pt'.format(str(index)))
+
+        # check if item is already saved
+        if os.path.exists(images_path) and os.path.exists(vs_path):
+            return torch.load(images_path), torch.load(vs_path)
+
+        torch.manual_seed(self.seeds[index])
+        
+        '''
+        generate velocities
+        '''
+        stds = torch.DoubleTensor(2).cuda().uniform_(0, self.max_std).repeat(self.total_path_length, 1)
+        vs = []
+        cumsum = stds[0,:].cpu()
+
+        while len(vs) < 2 * self.random_walk_length:
+            v = torch.DoubleTensor(2).uniform_(-self.max_std_shift, self.max_std_shift)
+
+            if inclusive_range(cumsum + v, 0, self.max_std):
+                vs.append(v)
+                cumsum += v
+        forward = torch.stack(vs).cuda()
+        backward = -forward
+        final_forward_point = cumsum.cuda()
+
+        while not inclusive_range(final_forward_point + backward.cumsum(dim=0), 0, self.max_std):
+            backward = backward[torch.randperm(2 * self.random_walk_length), :]
+        
+        gt_vs = torch.vstack((
+            torch.zeros(2).cuda(),
+            forward,
+            backward
+        ))
+
+        torch._assert(torch.isclose(gt_vs.sum(dim=0), torch.zeros(2).cuda().double(), atol=1e-8).all(), "vs must sum to zero: {}".format(gt_vs.sum(dim=0)))
+            
+
+        shifted_stds = (gt_vs.cumsum(dim=0) + stds).float()
+
+        images = deepcopy(self.body)
+        
+
+        '''
+        assemble neck and legs
+        '''
+        images[:, self.neck_x_range, self.neck_y] = self.gauss(
+            self.x_grid.repeat(self.total_path_length, 1),
+            self.x_grid.max().repeat(self.total_path_length, len(self.x_grid)),
+            shifted_stds[:, 0].repeat(len(self.x_grid), 1).T,
+        )
+        images[:, self.leg_x_range, self.leg1_y] = self.gauss(
+            self.x_grid.repeat(self.total_path_length, 1),
+            self.x_grid.min().repeat(self.total_path_length, len(self.x_grid)),
+            shifted_stds[:, 1].repeat(len(self.x_grid), 1).T,
+        )
+        images[:, self.leg_x_range, self.leg2_y] = self.gauss(
+            self.x_grid.repeat(self.total_path_length, 1),             
+            self.x_grid.min().repeat(self.total_path_length, len(self.x_grid)),
+            shifted_stds[:, 1].repeat(len(self.x_grid), 1).T,
+        )
+        
+
+        # images gets cropped from 32 x 32 --> 32 x 12
+        images = images[:, :, 11:-9]
+        images = images.unsqueeze(1).cpu()
+        images.clip_(0, 1)
+
+        torch._assert(torch.isclose(images[0], images[-1], atol=1e-8).all(), "first and last image must be the same in a loop")
+        
+        gt_vs = gt_vs[1:, :].cpu()
+
+        torch.save(images.float(), images_path)
+        torch.save(gt_vs.float(), vs_path)
+
+        return images, gt_vs
+
+
+    def generate_sample_trajectory(self, length):
+        fix_randomness(seed=0)
+
+        total_path_length = length + 1
+
+        stds = torch.DoubleTensor(2).cuda().uniform_(0, self.max_std).repeat(total_path_length, 1)
+
+        vs = []
+        cumsum = stds[0,:].cpu()
+        while len(vs) < length:
+            v = torch.DoubleTensor(2).uniform_(-self.max_std_shift, self.max_std_shift)
+
+            if inclusive_range(cumsum + v, 0, self.max_std):
+                vs.append(v)
+                cumsum += v
+        
+        gt_vs = torch.vstack((
+            torch.zeros(2).cuda(),
+            torch.stack(vs).cuda()
+        ))
+
+        shifted_stds = (gt_vs.cumsum(dim=0) + stds).float()
+
+        images = deepcopy(self.body)
+        images = images[0, :].repeat(total_path_length, 1, 1)
+
+
+        images[:, self.neck_x_range, self.neck_y] = self.gauss(
+            self.x_grid.repeat(total_path_length, 1),
+            self.x_grid.max().repeat(total_path_length, len(self.x_grid)),
+            shifted_stds[:, 0].repeat(len(self.x_grid), 1).T,
+        )
+        images[:, self.leg_x_range, self.leg1_y] = self.gauss(
+            self.x_grid.repeat(total_path_length, 1),
+            self.x_grid.min().repeat(total_path_length, len(self.x_grid)),
+            shifted_stds[:, 1].repeat(len(self.x_grid), 1).T,
+        )
+        images[:, self.leg_x_range, self.leg2_y] = self.gauss(
+            self.x_grid.repeat(total_path_length, 1),             
+            self.x_grid.min().repeat(total_path_length, len(self.x_grid)),
+            shifted_stds[:, 1].repeat(len(self.x_grid), 1).T,
+        )
+        
+
+        # images gets cropped from 32 x 32 --> 32 x 12
+        images = images[:, :, 11:-9]
+        images = images.unsqueeze(1).cpu()
+        images.clip_(0, 1)
+
+        gt_vs = gt_vs[1:, :].cpu()
+
+        return images.float(), gt_vs.float()
+    
+
+    def cmap(self, X):
+        # X is a N x 2 matrix
+
+        colormap = mp.cm.ScalarMappable(mp.colors.Normalize(vmin=0.0, vmax=1.0), cmap='hsv')
+
+        r = torch.sqrt(X[:, 0]**2 + X[:, 1]**2)
+        r = convert_range(r, (0, (2 * self.max_std_shift**2)**0.5), (0, 1))
+        theta = torch.atan2(X[:, 1], X[:, 0])
+        theta = convert_range(theta, (-torch.pi, torch.pi), (0, 1))
+
+        colors = r.unsqueeze(1).numpy() * colormap.to_rgba(theta.numpy())
+        colors = colors.clip(0, 1)
+
+        colors[:, -1] = np.ones(colors.shape[0])
+
+        return colors
+
+    
+    def __len__(self):
+        return len(self.seeds)
