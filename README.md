@@ -1,3 +1,5 @@
 # velocity_extraction
 
-Creating "velocity" vectors from data to feed into grid cells. 
+Code for NeurIPS 2024 Paper. 
+
+Wandb runs: https://wandb.ai/iyer/gcpc_velocity/overview
