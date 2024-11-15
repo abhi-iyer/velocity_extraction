@@ -2,8 +2,7 @@
 
 **_Code for NeurIPS 2024 Paper_**: 
 
-Abhiram Iyer, Sarthak Chandra, Sugandha Sharma, Ila Fiete. [Flexible mapping of abstract domains by grid cells via self-supervised extraction and projection of gen-
-eralized velocity signals.](https://neurips.cc/virtual/2024/poster/94041) NeurIPS, 2024.
+Abhiram Iyer, Sarthak Chandra, Sugandha Sharma, Ila Fiete. [Flexible mapping of abstract domains by grid cells via self-supervised extraction and projection of generalized velocity signals.](https://neurips.cc/virtual/2024/poster/94041) NeurIPS, 2024.
 
 **_Cite our work_**: 
 
