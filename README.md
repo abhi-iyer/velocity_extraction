@@ -5,6 +5,7 @@
 Abhiram Iyer, Sarthak Chandra, Sugandha Sharma, Ila Fiete. [Flexible mapping of abstract domains by grid cells via self-supervised extraction and projection of generalized velocity signals.](https://neurips.cc/virtual/2024/poster/94041) NeurIPS, 2024.
 
 **_Instructions_**
+
 `runner.py` allows the user to run various experiments. Each experiment can be parameterized through a "config", which is contained in `configs.py`. The analysis scripts (e.g., `analysis_bird2d.ipynb`) provide code for generating paper figures and running analyses within each "abstract domain".
 
 **_Cite our work_**: 
